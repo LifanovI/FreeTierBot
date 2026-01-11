@@ -27,6 +27,12 @@ variable "telegram_bot_token" {
   sensitive   = true
 }
 
+variable "gemini_api_key" {
+  description = "Google Gemini API key for AI agent"
+  type        = string
+  sensitive   = true
+}
+
 variable "webhook_secret" {
   description = "Secret token for webhook authentication"
   type        = string

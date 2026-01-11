@@ -45,12 +45,19 @@ if [ -z "$BOT_TOKEN" ]; then
     exit 1
 fi
 
+read -p "Enter your Gemini API Key (from Google AI Studio): " GEMINI_KEY
+if [ -z "$GEMINI_KEY" ]; then
+    echo "❌ Gemini API key is required"
+    exit 1
+fi
+
 # Create terraform.tfvars
 echo ""
 echo "📝 Creating terraform configuration..."
 cat > terraform/terraform.tfvars << EOF
 project_id         = "$PROJECT_ID"
 telegram_bot_token = "$BOT_TOKEN"
+gemini_api_key     = "$GEMINI_KEY"
 EOF
 
 echo "✅ Configuration created"
@@ -82,6 +89,21 @@ fi
 echo "✅ Function URL: $FUNCTION_URL"
 echo "✅ Webhook Secret: [HIDDEN]"
 
+# Create Firestore composite index for chat history
+echo ""
+echo "📊 Creating Firestore index for chat history..."
+if gcloud firestore indexes composite create \
+  --collection-group=chat_history \
+  --field-config field-path=chat_id,order=ascending \
+  --field-config field-path=timestamp,order=descending \
+  --project=$PROJECT_ID \
+  --quiet; then
+    echo "✅ Firestore index creation initiated"
+    echo "   Note: Index creation may take 5-10 minutes to complete"
+else
+    echo "⚠️  Index creation failed or already exists (this is usually OK)"
+fi
+
 # Set Telegram webhook with authentication
 echo ""
 echo "📡 Setting Telegram webhook..."
@@ -105,13 +127,17 @@ echo "======================"
 echo "Your Telegram Coach Bot is now live!"
 echo ""
 echo "Bot Features:"
+echo "• Natural language chat with AI coach"
+echo "• /system_prompt <text> - Set AI personality"
 echo "• /remind <time> <message> [interval] - Set reminders"
 echo "• /list - View active reminders"
 echo "• /delete <number> - Delete reminders"
+echo "• AI can set reminders and daily check-ins automatically"
 echo ""
 echo "Time formats: 'tomorrow 3pm', '2026-01-10 09:00', 'in 2 hours'"
 echo "Intervals: daily, weekly, monthly"
 echo ""
 echo "💡 Tip: The bot checks for due reminders every minute"
+echo "🤖 Try chatting naturally - the AI coach will respond intelligently!"
 echo ""
 echo "To destroy the infrastructure later: cd terraform && terraform destroy"

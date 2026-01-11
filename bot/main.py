@@ -5,6 +5,7 @@ import logging
 import os
 from telegram import send_message, parse_command
 from reminders import create_reminder, get_reminders, delete_reminder, get_due_reminders, mark_reminder_sent
+from ai_agent import get_chat_response, set_user_system_prompt, generate_agent_reachout_message
 import datetime
 import pytz
 from dateutil import parser as date_parser
@@ -96,8 +97,23 @@ def telegram_webhook(request):
             except ValueError:
                 send_message(chat_id, "Invalid number.")
 
+        elif command == '/system_prompt':
+            if not args:
+                send_message(chat_id, "Usage: /system_prompt <your prompt text>\nExample: /system_prompt You are a fitness coach focused on strength training.")
+                return 'OK'
+            prompt_text = ' '.join(args)
+            set_user_system_prompt(chat_id, prompt_text)
+            send_message(chat_id, f"System prompt updated! I'll now respond according to: {prompt_text}")
+
+        elif command is None:
+            # Not a command, treat as natural language message to AI
+            ai_response = get_chat_response(chat_id, text)
+            print(f"sending AI message: {text}")
+            result = send_message(chat_id, ai_response)
+            logging.info(f"Send message results: {result}")
+
         else:
-            send_message(chat_id, "Unknown command. Use /remind, /list, or /delete.")
+            send_message(chat_id, "Unknown command. Use /remind, /list, /delete, or /system_prompt.")
 
         return 'OK'
 
@@ -113,9 +129,17 @@ def scheduler_tick(cloud_event: CloudEvent):
         for doc in due_reminders:
             data = doc.to_dict()
             chat_id = data['chat_id']
-            text = data['text']
+            reminder_type = data.get('type', 'reminder')
             interval = data.get('interval')
-            send_message(chat_id, f"Reminder: {text}")
+
+            if reminder_type == 'agent_reachout':
+                # Generate AI message for agent reachout
+                message_text = generate_agent_reachout_message(data)
+            else:
+                # Regular reminder
+                message_text = f"Reminder: {data['text']}"
+
+            send_message(chat_id, message_text)
             mark_reminder_sent(doc.reference, interval)
 
         return f"Processed {len(due_reminders)} reminders"

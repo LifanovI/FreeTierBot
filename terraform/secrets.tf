@@ -20,3 +20,20 @@ resource "google_secret_manager_secret_version" "telegram_bot_token" {
 
   depends_on = [google_secret_manager_secret.telegram_bot_token]
 }
+
+resource "google_secret_manager_secret" "gemini_api_key" {
+  secret_id = "gemini-api-key"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.secretmanager]
+}
+
+resource "google_secret_manager_secret_version" "gemini_api_key" {
+  secret      = google_secret_manager_secret.gemini_api_key.id
+  secret_data = var.gemini_api_key
+
+  depends_on = [google_secret_manager_secret.gemini_api_key]
+}

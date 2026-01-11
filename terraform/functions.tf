@@ -45,6 +45,12 @@ resource "google_cloudfunctions2_function" "telegram_webhook" {
       secret     = var.telegram_bot_token_secret
       version    = "latest"
     }
+    secret_environment_variables {
+      key        = "GEMINI_API_KEY"
+      project_id = var.project_id
+      secret     = "gemini-api-key"
+      version    = "latest"
+    }
   }
 
   depends_on = [
@@ -85,6 +91,12 @@ resource "google_cloudfunctions2_function" "scheduler_tick" {
       key        = "TELEGRAM_BOT_TOKEN"
       project_id = var.project_id
       secret     = var.telegram_bot_token_secret
+      version    = "latest"
+    }
+    secret_environment_variables {
+      key        = "GEMINI_API_KEY"
+      project_id = var.project_id
+      secret     = "gemini-api-key"
       version    = "latest"
     }
   }

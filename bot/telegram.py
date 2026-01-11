@@ -11,14 +11,21 @@ def send_message(chat_id, text, bot_token=None):
     if bot_token is None:
         bot_token = get_bot_token()
 
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "Markdown"
-    }
-    response = requests.post(url, json=payload)
-    return response.json()
+    # Split text into chunks of 4000 characters
+    messages = [text[i:i+4000] for i in range(0, len(text), 4000)]
+
+    results = []
+    for msg in messages:
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": msg,
+            "parse_mode": "Markdown",
+        }
+        response = requests.post(url, json=payload)
+        results.append(response.json())
+
+    return results
 
 def set_webhook(url, bot_token=None):
     """Set Telegram webhook URL."""

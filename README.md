@@ -1,6 +1,6 @@
-# Personal Telegram Coach/Reminder Bot
+# Personal AI Telegram Coach/Reminder Bot
 
-A minimal personal Telegram bot that handles reminders using Google Cloud Platform serverless services (free tier).
+An intelligent personal Telegram bot powered by Gemini AI that handles reminders and provides natural language coaching using Google Cloud Platform serverless services (free tier).
 
 ## Architecture
 
@@ -10,11 +10,19 @@ A minimal personal Telegram bot that handles reminders using Google Cloud Platfo
 - **Pub/Sub**: Used for scheduler events
 - **Secret Manager**: Stores Telegram bot token
 
-## Features
+## AI Features
+
+- **Natural Language Chat**: Send any message and get AI-powered responses based on your custom system prompt
+- **System Prompt Configuration**: `/system_prompt <text>` - Set your bot's personality and behavior
+- **Intelligent Reminders**: AI can automatically set reminders and agent reachouts during conversation
+- **Agent Reachouts**: Daily AI-initiated check-ins to help you stay on track with your goals
+
+## Commands
 
 - `/remind <time> <message> [interval]`: Set a one-time or recurring reminder
 - `/list`: List all active reminders
 - `/delete <number>`: Delete a reminder by number
+- `/system_prompt <text>`: Configure the AI's behavior and personality
 
 ## Time Formats
 
@@ -55,6 +63,7 @@ If you prefer manual control:
 - Terraform installed
 - gcloud CLI authenticated
 - Telegram Bot Token (get from @BotFather)
+- Gemini API Key (get from [Google AI Studio](https://aistudio.google.com/app/apikey))
 
 ### Steps
 
@@ -66,6 +75,7 @@ If you prefer manual control:
    ```hcl
    project_id          = "your-gcp-project-id"
    telegram_bot_token  = "your-bot-token-here"
+   gemini_api_key      = "your-gemini-api-key-here"
    ```
 
 3. **Navigate to terraform directory and initialize:**
