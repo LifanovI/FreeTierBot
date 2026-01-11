@@ -1,0 +1,28 @@
+# Terraform - Sensitive files containing secrets and state
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/terraform.tfvars
+terraform/.terraform/
+
+# Python
+__pycache__/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build artifacts
+.terraform.lock.hcl

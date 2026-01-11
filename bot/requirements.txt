@@ -1,0 +1,5 @@
+functions-framework==3.*
+google-cloud-firestore==2.*
+requests==2.*
+pytz==2023.*
+python-dateutil==2.*
