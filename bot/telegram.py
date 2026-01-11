@@ -7,12 +7,14 @@ def get_bot_token():
     return os.environ['TELEGRAM_BOT_TOKEN']
 
 def send_message(chat_id, text, bot_token=None):
-    """Send a message via Telegram Bot API."""
     if bot_token is None:
         bot_token = get_bot_token()
 
     # Split text into chunks of 4000 characters
     messages = [text[i:i+4000] for i in range(0, len(text), 4000)]
+
+    # Use Markdown only if there's a single chunk (short message)
+    parse_mode = "Markdown" if len(messages) == 1 else None
 
     results = []
     for msg in messages:
@@ -20,9 +22,12 @@ def send_message(chat_id, text, bot_token=None):
         payload = {
             "chat_id": chat_id,
             "text": msg,
-            "parse_mode": "Markdown",
         }
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
         response = requests.post(url, json=payload)
+        print(f"Response status: {response.status_code}")
+        print(f"Response body: {response.json()}")
         results.append(response.json())
 
     return results

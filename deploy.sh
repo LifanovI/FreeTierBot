@@ -104,6 +104,21 @@ else
     echo "⚠️  Index creation failed or already exists (this is usually OK)"
 fi
 
+# Create Firestore composite index for reminders
+echo ""
+echo "📊 Creating Firestore index for reminders..."
+if gcloud firestore indexes composite create \
+  --collection-group=reminders \
+  --field-config field-path=active,order=ascending \
+  --field-config field-path=next_run,order=ascending \
+  --project=$PROJECT_ID \
+  --quiet; then
+    echo "✅ Reminders Firestore index creation initiated"
+    echo "   Note: Index creation may take 5-10 minutes to complete"
+else
+    echo "⚠️  Reminders index creation failed or already exists (this is usually OK)"
+fi
+
 # Set Telegram webhook with authentication
 echo ""
 echo "📡 Setting Telegram webhook..."
