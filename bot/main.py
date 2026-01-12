@@ -8,7 +8,6 @@ from reminders import create_reminder, get_reminders, delete_reminder, get_due_r
 from ai_agent import get_chat_response, set_user_system_prompt, generate_agent_reachout_message
 import datetime
 import pytz
-from dateutil import parser as date_parser
 
 logging.basicConfig(level=logging.INFO)
 
@@ -25,8 +24,17 @@ def telegram_webhook(request):
 
         # Request body is the Telegram update JSON
         update = request.get_json()
-        if not update or 'message' not in update:
-            return 'Invalid Telegram update', 400
+        print(f"update is: {update}")
+        if not update:
+            return 'Invalid request', 400
+
+        if 'edited_message' in update:
+            return 'OK'
+
+        # Handle different update types
+        if 'message' in update:
+            # Process message as before
+            message = update['message']
 
         message = update['message']
         chat_id = message.get('chat', {}).get('id')
@@ -40,7 +48,7 @@ def telegram_webhook(request):
         if command == '/remind':
             # /remind <time> <text> [interval]
             if len(args) < 2:
-                send_message(chat_id, "Usage: /remind <time> <text> [interval]\nExamples:\n/remind tomorrow 'brush teeth' daily\n/remind '2026-01-10 09:00' workout")
+                send_message(chat_id, "Usage: /remind <time> <text> [interval]\nExample: /remind 2026-01-10-09:00 workout daily")
                 return 'OK'
 
             # Debug logging
@@ -59,7 +67,10 @@ def telegram_webhook(request):
             logging.info(f"Parsed: time='{time_str}', text='{reminder_text}', interval={interval}")
 
             try:
-                next_run = date_parser.parse(time_str)
+                try:
+                    next_run = datetime.datetime.strptime(time_str, '%Y-%m-%d-%H:%M')
+                except ValueError:
+                    next_run = datetime.datetime.strptime(time_str, '%Y-%m-%d')
                 if next_run.tzinfo is None:
                     next_run = pytz.UTC.localize(next_run)
                 reminder_id = create_reminder(chat_id, reminder_text, next_run, interval)
@@ -67,7 +78,7 @@ def telegram_webhook(request):
                 logging.info(f"Reminder created: {reminder_id}")
             except Exception as e:
                 logging.error(f"Time parsing failed for '{time_str}': {str(e)}")
-                send_message(chat_id, f"Invalid time format '{time_str}'. Error: {str(e)}\n\nTry formats like:\n• tomorrow\n• 2026-01-10 09:00\n• in 2 hours\n• 8am")
+                send_message(chat_id, f"Invalid time format '{time_str}'. Expected format: YYYY-MM-DD[-HH:MM] (e.g., 2026-01-10 or 2026-01-10-09:00)")
 
         elif command == '/list':
             reminders = get_reminders(chat_id)
