@@ -75,7 +75,7 @@ def get_chat_response(chat_id, user_message):
     # Get system prompt and history
     system_prompt = get_user_system_prompt(chat_id)
     if not system_prompt:
-        system_prompt = "You are a helpful personal coach and reminder assistant. When users ask you to set reminders or schedule activities, ALWAYS respond with a friendly conversational message AND use the appropriate function (set_reminder or set_agent_reachout) to actually create the reminder. For example: 'Got it! I'll remind you to workout on Monday at 9 AM.' (then call set_reminder function)"
+        system_prompt = "You are a helpful personal coach and reminder assistant."
 
     history = get_chat_history(chat_id)
 
@@ -101,48 +101,48 @@ def get_chat_response(chat_id, user_message):
 
     # Define function declarations for Gemini
     function_declarations = [
-        {
-            'name': 'set_reminder',
-            'description': 'Set a reminder for the user. Generate the exact Firebase-compatible format.',
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'next_run': {
-                        'type': 'string',
-                        'description': 'ISO datetime string in UTC (e.g., "2026-01-15T09:00:00+00:00")'
+                {
+                "name": "set_reminder",
+                "description": "Set a reminder for the user. Generate the exact Firebase-compatible format.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "next_run": {
+                            "type": "string",
+                            "description": "ISO datetime string in UTC (e.g., 2026-01-15T09:00:00)"
+                        },
+                        "text": {
+                            "type": "string",
+                            "description": "Reminder message text"
+                        },
+                        "interval": {
+                            "type": "string",
+                            "enum": ["daily", "weekly", "monthly"],
+                            "description": "Optional recurrence interval (omit for one-time reminders)"
+                        }
                     },
-                    'text': {
-                        'type': 'string',
-                        'description': 'Reminder message text'
+                    "required": ["next_run", "text"]
+                }
+            },
+            {
+                "name": "set_agent_reachout",
+                "description": "Schedule an AI-initiated check-in with the user",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "next_run": {
+                            "type": "string",
+                            "description": "ISO datetime string in UTC (e.g., 2026-01-15T09:00:00)"
+                        },
+                        "purpose": {
+                            "type": "string",
+                            "description": "Purpose of the reachout"
+                        }
                     },
-                    'interval': {
-                        'type': ['string', 'null'],
-                        'enum': ['daily', 'weekly', 'monthly', None],
-                        'description': 'Optional recurrence interval (null for one-time reminders)'
-                    }
-                },
-                'required': ['next_run', 'text']
+                    "required": ["next_run", "purpose"]
+                }
             }
-        },
-        {
-            'name': 'set_agent_reachout',
-            'description': 'Schedule an AI-initiated check-in with the user',
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'next_run': {
-                        'type': 'string',
-                        'description': 'ISO datetime string in UTC for the reachout'
-                    },
-                    'purpose': {
-                        'type': 'string',
-                        'description': 'Purpose of the reachout (e.g., "check workout progress")'
-                    }
-                },
-                'required': ['next_run', 'purpose']
-            }
-        }
-    ]
+        ]
 
     # Prepare Generative Language API request with header authentication
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
@@ -154,9 +154,9 @@ def get_chat_response(chat_id, user_message):
 
     payload = {
         'contents': contents,
-        #'tools': [{
-        #    'functionDeclarations': function_declarations
-        #}],
+        'tools': [{
+            'functionDeclarations': function_declarations
+        }],
     }
 
     print(f"DEBUG: Calling Gemini API with {len(contents)} messages")
@@ -190,9 +190,9 @@ def get_chat_response(chat_id, user_message):
             for part in content['parts']:
                 if 'text' in part:
                     text_response += part['text']
-                elif 'function_call' in part:
+                elif 'functionCall' in part:
                     # Handle function call
-                    func_call = part['function_call']
+                    func_call = part['functionCall']
                     func_name = func_call['name']
                     func_args = func_call.get('args', {})
 

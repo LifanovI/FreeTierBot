@@ -10,19 +10,34 @@ An intelligent personal Telegram bot powered by Gemini AI that handles reminders
 - **Pub/Sub**: Used for scheduler events
 - **Secret Manager**: Stores Telegram bot token
 
-## AI Features
+## Reminders
+Reminders can be:
+- External - standard user set reminders which are verbose and result in messages in chat
+- Internal - reminders triggering AI agent to message
+- System - not visible to user/ai agent. Can be used for system actions (e.g. setting other reminders or triggers). If during last 12 hours, there was no interactions with AI agent, a system reminders ticking every hour will prompt AI agent to reach out with probability of 20% every hour (excluding night hours) 
 
-- **Natural Language Chat**: Send any message and get AI-powered responses based on your custom system prompt
-- **System Prompt Configuration**: `/system_prompt <text>` - Set your bot's personality and behavior
-- **Intelligent Reminders**: AI can automatically set reminders and agent reachouts during conversation
-- **Agent Reachouts**: Daily AI-initiated check-ins to help you stay on track with your goals
+To save space, inactive reminders are removed
 
-## Commands
+## AI Features and Reminders
 
-- `/remind <time> <message> [interval]`: Set a one-time or recurring reminder
-- `/list`: List all active reminders
+All messages except for command will be processed by AI agent, which can Get Reminders, Modify/delete Reminders and Set reminders
+- If during last 
+- To save space, incative reminders will be removed
+
+Syntax for setting reminders:
+```bash
+set reminder_from_ai(chat_id, next_run_str, text, interval=None, reminder_type='internal', folowup=10)
+```
+
+
+## User Commands
+
+- `/initiate`: Configure the system from start
+- `/remind <time> <message> [interval]`: Set a one-time or recurring external reminder
+- `/list`: List all active external reminders
 - `/delete <number>`: Delete a reminder by number
 - `/system_prompt <text>`: Configure the AI's behavior and personality
+
 
 ## Time Formats
 

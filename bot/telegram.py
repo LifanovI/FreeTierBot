@@ -14,7 +14,7 @@ def send_message(chat_id, text, bot_token=None):
     messages = [text[i:i+4000] for i in range(0, len(text), 4000)]
 
     # Use Markdown only if there's a single chunk (short message)
-    parse_mode = "Markdown" if len(messages) == 1 else None
+    parse_mode = None #"Markdown" if len(messages) == 1 else None
 
     results = []
     for msg in messages:

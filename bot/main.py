@@ -48,7 +48,7 @@ def telegram_webhook(request):
         if command == '/remind':
             # /remind <time> <text> [interval]
             if len(args) < 2:
-                send_message(chat_id, "Usage: /remind <time> <text> [interval]\nExample: /remind 2026-01-10-09:00 workout daily")
+                send_message(chat_id, "Usage: /remind <time> <text> [interval]\nExample: /remind 2026-01-15T09:00:00+00:00 workout daily")
                 return 'OK'
 
             # Debug logging
@@ -67,18 +67,18 @@ def telegram_webhook(request):
             logging.info(f"Parsed: time='{time_str}', text='{reminder_text}', interval={interval}")
 
             try:
-                try:
-                    next_run = datetime.datetime.strptime(time_str, '%Y-%m-%d-%H:%M')
-                except ValueError:
-                    next_run = datetime.datetime.strptime(time_str, '%Y-%m-%d')
+                next_run = datetime.datetime.fromisoformat(time_str)
                 if next_run.tzinfo is None:
                     next_run = pytz.UTC.localize(next_run)
-                reminder_id = create_reminder(chat_id, reminder_text, next_run, interval)
+                else:
+                    next_run = next_run.astimezone(pytz.UTC)
+
+                reminder_id = create_reminder(chat_id, text, next_run, interval, reminder_type)
                 send_message(chat_id, f"Reminder set for {next_run.strftime('%Y-%m-%d %H:%M %Z')}")
                 logging.info(f"Reminder created: {reminder_id}")
             except Exception as e:
                 logging.error(f"Time parsing failed for '{time_str}': {str(e)}")
-                send_message(chat_id, f"Invalid time format '{time_str}'. Expected format: YYYY-MM-DD[-HH:MM] (e.g., 2026-01-10 or 2026-01-10-09:00)")
+                send_message(chat_id, f"Invalid time format '{time_str}'. Expected ISO datetime string in UTC (e.g., 2026-01-15T09:00:00+00:00)")
 
         elif command == '/list':
             reminders = get_reminders(chat_id)
@@ -119,7 +119,7 @@ def telegram_webhook(request):
         elif command is None:
             # Not a command, treat as natural language message to AI
             ai_response = get_chat_response(chat_id, text)
-            print(f"sending AI message: {text}")
+            print(f"sending AI message: {ai_response}")
             result = send_message(chat_id, ai_response)
             logging.info(f"Send message results: {result}")
 
