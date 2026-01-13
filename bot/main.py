@@ -159,9 +159,6 @@ def scheduler_tick(cloud_event: CloudEvent):
                 # AI-triggered reminder
                 message_text = generate_agent_reachout_message(data, chat_id)
                 send_message(chat_id, message_text)
-                # Update last AI message timestamp
-                doc_ref = db.collection('users').document(str(chat_id))
-                doc_ref.set({'last_ai_message': firestore.SERVER_TIMESTAMP}, merge=True)
             # system type not handled here
 
             mark_reminder_sent(doc.reference, interval)

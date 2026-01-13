@@ -6,6 +6,7 @@ import pytz
 from dateutil import parser as date_parser
 import json
 import logging
+from reminders import get_reminders, delete_reminder
 
 db = firestore.Client()
 
@@ -47,7 +48,7 @@ def add_chat_message(chat_id, role, content):
         'timestamp': firestore.SERVER_TIMESTAMP
     })
 
-def create_reminder_from_ai(chat_id, next_run_str, text, interval=None, reminder_type='internal', followup=10):
+def create_reminder_from_ai(chat_id, next_run_str, text, interval=None, reminder_type='external', followup=10):
     """Create a reminder from AI function call with pre-formatted Firebase data."""
     from reminders import create_reminder  # Import here to avoid circular import
     if followup == -1:
@@ -102,7 +103,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
         })
     elif mode == "agent_reachout":
         contents.append({
-            'role': 'assistant',
+            'role': 'model',
             'parts': [{'text': message}]
         })
     # Define function declarations for Gemini (only for respond_user mode)
@@ -137,23 +138,31 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                     }
                 },
                 {
-                    "name": "set_agent_reachout",
-                    "description": "Schedule an AI-initiated check-in with the user",
+                    "name": "check_reminders",
+                    "description": "Retrieve and display all current reminders for the user",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                },
+                {
+                    "name": "delete_reminders",
+                    "description": "Delete one or multiple reminders by their IDs",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "next_run": {
-                                "type": "string",
-                                "description": "ISO datetime string in UTC (e.g., 2026-01-15T09:00:00)"
-                            },
-                            "purpose": {
-                                "type": "string",
-                                "description": "Purpose of the reachout"
+                            "ids": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "description": "The unique IDs of the reminders to delete"
                             }
                         },
-                        "required": ["next_run", "purpose"]
+                        "required": ["ids"]
                     }
-                }
+                },
             ]
         tools = [{
             'functionDeclarations': function_declarations
@@ -169,14 +178,15 @@ def get_chat_response(chat_id, message, mode="respond_user"):
 
     payload = {
         'contents': contents,
-        'systemInstruction': {
-            'parts': [{'text': system_prompt}]
+        'system_instruction': {
+            'parts': {'text': system_prompt}
         },
     }
     if tools:
         payload['tools'] = tools
 
     print(f"DEBUG: Calling Gemini API with {len(contents)} messages")
+    print(f"DEBUG: {contents}")
 
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=30)
@@ -231,8 +241,34 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                             chat_id,
                             func_args.get('next_run', ''),
                             f"AI check-in: {func_args.get('purpose', '')}",
-                            reminder_type='internal'
                         )
+                        function_results.append(result)
+                    elif func_name == 'check_reminders':
+                        reminders = get_reminders(chat_id)
+                        result = "I've just checked user's active reminders:"
+                        if not reminders:
+                            result += " No active reminders."
+                        else:
+                            result += "Active reminders:\n" + "\n".join([f"- {r['text']} at {r['next_run']} (ID: {r['id']})" for r in reminders])
+                        result += " now I can continue with the user request"
+                        add_chat_message(chat_id, "user", message)
+                        return get_chat_response(chat_id, result, mode="agent_reachout")
+                    elif func_name == 'delete_reminders':
+                        ids = func_args.get('ids', [])
+                        if not ids:
+                            result = "No reminder IDs provided."
+                        else:
+                            deleted = 0
+                            failed = 0
+                            for reminder_id in ids:
+                                if delete_reminder(chat_id, reminder_id):
+                                    deleted += 1
+                                else:
+                                    failed += 1
+                            if failed == 0:
+                                result = f"Successfully deleted {deleted} reminder(s)."
+                            else:
+                                result = f"Deleted {deleted} reminder(s), {failed} failed."
                         function_results.append(result)
 
         # Combine text response with function results
@@ -275,4 +311,6 @@ def generate_agent_reachout_message(reminder_data, chat_id):
     """Generate a personalized message for agent reachout using AI."""
     purpose = reminder_data.get('text', '').replace('AI check-in: ', '')
     ai_prompt = f"Generate a friendly, natural check-in message about: {purpose}"
+    doc_ref = db.collection('users').document(str(chat_id))
+    doc_ref.set({'last_ai_message': firestore.SERVER_TIMESTAMP}, merge=True)
     return get_chat_response(chat_id, ai_prompt, mode="agent_reachout")
