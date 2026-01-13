@@ -14,19 +14,19 @@ An intelligent personal Telegram bot powered by Gemini AI that handles reminders
 Reminders can be:
 - External - standard user set reminders which are verbose and result in messages in chat
 - Internal - reminders triggering AI agent to message
-- System - not visible to user/ai agent. Can be used for system actions (e.g. setting other reminders or triggers). If during last 12 hours, there was no interactions with AI agent, a system reminders ticking every hour will prompt AI agent to reach out with probability of 20% every hour (excluding night hours) 
+- System - not visible to user/ai agent. Can be used for system actions (e.g. setting other reminders or triggers). If during last 12 hours, there was no interactions with AI agent, a system reminders ticking every hour will prompt AI agent to reach out with probability of 20% every hour (excluding night hours and unless last 3 messages in the chat were from AI agent)
 
 To save space, inactive reminders are removed
 
 ## AI Features and Reminders
 
 All messages except for command will be processed by AI agent, which can Get Reminders, Modify/delete Reminders and Set reminders
-- If during last 
+- AI agent can schedule followups to reminders with "followup" parameter - this will schedule an internal reminder after the external one. To avoid followup, set -1
 - To save space, incative reminders will be removed
 
 Syntax for setting reminders:
 ```bash
-set reminder_from_ai(chat_id, next_run_str, text, interval=None, reminder_type='internal', folowup=10)
+set reminder_from_ai(chat_id, next_run_str, text, interval=None, reminder_type='internal', followup=10)
 ```
 
 
