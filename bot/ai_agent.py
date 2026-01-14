@@ -48,15 +48,13 @@ def add_chat_message(chat_id, role, content):
         'timestamp': firestore.SERVER_TIMESTAMP
     })
 
-def create_reminder_from_ai(chat_id, next_run_str, text, interval=None, reminder_type='external', followup=10):
+def create_reminder_from_ai(chat_id, next_run_str, text, interval=None, reminder_type='external'):
     """Create a reminder from AI function call with pre-formatted Firebase data."""
     from reminders import create_reminder  # Import here to avoid circular import
-    if followup == -1:
-        followup = None
     print(f"DEBUG: Creating reminder - next_run: '{next_run_str}', text: '{text}', interval: {interval}")
     try:
         # next_run_str is already in ISO format, pass it directly
-        reminder_id = create_reminder(chat_id, text, next_run_str, interval, reminder_type, followup)
+        reminder_id = create_reminder(chat_id, text, next_run_str, interval, reminder_type)
         print(f"DEBUG: Reminder created successfully: {reminder_id}")
         return f"Reminder created: {text} for {next_run_str} {interval}"
     except Exception as e:
@@ -71,6 +69,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
     "respond_user" - direct response to user
     "agent_reachout" - continue conversation based on internal agent prompt (e.g. to continue chat after delay)
     "agent_reminder" - agent generates message for scheduled reminder"""
+    print(f"DEBUG: calling Gemini with {message} in mode: {mode}")
     api_key = os.environ.get('GEMINI_API_KEY')
     if not api_key:
         logging.error("GEMINI_API_KEY environment variable not set")
@@ -81,8 +80,10 @@ def get_chat_response(chat_id, message, mode="respond_user"):
     current_time = datetime.datetime.utcnow().strftime('%H:%M UTC')
     system_prompt_text = f"You are a telegram reminder chat bot designed to serve user in a role they define. Today is {today} an current time is {current_time}. User defined role: "
     system_prompt_text += get_user_system_prompt(chat_id)
+    
     if mode == "agent_reminder":
-        system_prompt_text += f"!IMPORTANT! You are reaching out regarding a reminder focus on it and not on the chat history! The reminder you must bring is: {message}"
+        # Hard constraint in prompt to prevent confusion
+        system_prompt_text += f"You are currently sending a notification for a reminder that is already set. Just gently remind the user: {message}"
     
     # Load history
     history = get_chat_history(chat_id)
@@ -100,47 +101,60 @@ def get_chat_response(chat_id, message, mode="respond_user"):
             'role': 'user',
             'parts': [{'text': message}]
         })
-    elif mode == "agent_reachout" or mode == "agent_reminder":
-        contents.append({
-            'role': 'model',
-            'parts': [{'text': message}]
-        })
+    elif mode == "agent_reachout":
+                # Even for reachout, we treat the 'purpose' as a user-like request 
+                # so the model generates the response
+                contents.append({
+                    'role': 'user',
+                    'parts': [{'text': f"(Internal System Trigger): Continue the conversation naturally and convey the following: {message}"}]
+                })
+    elif mode == "agent_reminder":
+                # Even for reachout, we treat the 'purpose' as a user-like request 
+                # so the model generates the response
+                contents.append({
+                    'role': 'user',
+                    'parts': [{'text': f"Do not mind previous conversation. Please convey this reminder: {message}"}]
+                })
 
-    # --- 2. Define Tools ---
-    tools = [{
-        'functionDeclarations': [
-            {
-                "name": "set_reminder",
-                "description": "Set a reminder for the user. Generate the exact Firebase-compatible format.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "next_run": {"type": "string", "description": "ISO datetime string in UTC (e.g., 2026-01-15T09:00:00)"},
-                        "text": {"type": "string", "description": "Reminder message text"},
-                        "interval": {"type": "string", "enum": ["daily", "weekly", "monthly"], "description": "Optional recurrence"},
-                        "followup": {"type": "integer", "description": "Minutes after reminder to follow up (default 10), or -1 for none"}
-                    },
-                    "required": ["next_run", "text"]
+    # --- 2. Define Tools (CONDITIONALLY) ---
+    # We ONLY define tools if we are responding to a user. 
+    # If we are just sending a reminder (agent_reminder), we disable tools to prevent loops.
+    tools = None
+    
+    if mode == "respond_user": 
+        tools = [{
+            'functionDeclarations': [
+                {
+                    "name": "set_reminder",
+                    "description": "Set a reminder for the user. Generate the exact Firebase-compatible format.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "next_run": {"type": "string", "description": "ISO datetime string in UTC (e.g., 2026-01-15T09:00:00)"},
+                            "text": {"type": "string", "description": "Reminder message text"},
+                            "interval": {"type": "string", "enum": ["daily", "weekly", "monthly"], "description": "Optional recurrence"},
+                        },
+                        "required": ["next_run", "text"]
+                    }
+                },
+                {
+                    "name": "check_reminders",
+                    "description": "Retrieve and display all current reminders for the user",
+                    "parameters": {"type": "object", "properties": {}}
+                },
+                {
+                    "name": "delete_reminders",
+                    "description": "Delete reminders by ID",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "ids": {"type": "array", "items": {"type": "string"}, "description": "IDs to delete"}
+                        },
+                        "required": ["ids"]
+                    }
                 }
-            },
-            {
-                "name": "check_reminders",
-                "description": "Retrieve and display all current reminders for the user",
-                "parameters": {"type": "object", "properties": {}}
-            },
-            {
-                "name": "delete_reminders",
-                "description": "Delete reminders by ID",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "ids": {"type": "array", "items": {"type": "string"}, "description": "IDs to delete"}
-                    },
-                    "required": ["ids"]
-                }
-            }
-        ]
-    }]
+            ]
+        }]
 
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
     headers = {
@@ -149,7 +163,6 @@ def get_chat_response(chat_id, message, mode="respond_user"):
     }
 
     # --- 3. Main Interaction Loop ---
-    # We loop to handle potential multiple function calls in a row (e.g., check -> delete -> respond)
     max_turns = 5
     current_turn = 0
 
@@ -159,11 +172,14 @@ def get_chat_response(chat_id, message, mode="respond_user"):
         payload = {
             'contents': contents,
             'system_instruction': {'parts': {'text': system_prompt_text}},
-            'tools': tools
         }
+        
+        # Only add tools to payload if they are defined
+        if tools:
+            payload['tools'] = tools
 
         try:
-            print(f"DEBUG: Turn {current_turn} - Sending request to Gemini...")
+            print(f"DEBUG: Turn {current_turn} - Sending request to Gemini (Mode: {mode})...")
             response = requests.post(url, headers=headers, json=payload, timeout=30)
             response.raise_for_status()
             data = response.json()
@@ -175,26 +191,22 @@ def get_chat_response(chat_id, message, mode="respond_user"):
             content = candidate.get('content', {})
             parts = content.get('parts', [])
 
-            # Check if we got a pure text response or a function call
             function_calls = [part['functionCall'] for part in parts if 'functionCall' in part]
 
             if not function_calls:
                 # -- FINAL TEXT RESPONSE --
                 text_response = "".join([p.get('text', '') for p in parts])
                 
-                # Save to DB and return
                 if mode == "respond_user":
-                    add_chat_message(chat_id, "user", message) # Only save user msg on first valid completion
+                    add_chat_message(chat_id, "user", message)
                 add_chat_message(chat_id, "assistant", text_response)
                 
                 return text_response
 
             else:
-                # -- HANDLE FUNCTION CALL --
-                # 1. Add the Assistant's "Function Call" message to history so Gemini knows it asked for it
+                # -- HANDLE FUNCTION CALL (Only happens if tools were provided) --
                 contents.append(content)
 
-                # 2. Process each function call
                 for func_call in function_calls:
                     func_name = func_call['name']
                     func_args = func_call.get('args', {})
@@ -202,16 +214,13 @@ def get_chat_response(chat_id, message, mode="respond_user"):
 
                     api_response = {}
 
-                    # Execute Python Logic
                     if func_name == 'set_reminder':
-                        followup = func_args.get('followup', 10)
                         res_str = create_reminder_from_ai(
                             chat_id,
                             func_args.get('next_run', ''),
                             func_args.get('text', ''),
                             func_args.get('interval'),
                             'internal',
-                            followup
                         )
                         api_response = {"result": res_str}
 
@@ -220,7 +229,6 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                         if not reminders:
                             api_response = {"result": "No active reminders found."}
                         else:
-                            # Send simplified list back to AI
                             rem_list = [{"id": r['id'], "text": r['text'], "time": r['next_run']} for r in reminders]
                             api_response = {"result": rem_list}
 
@@ -232,8 +240,6 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                                 deleted_count += 1
                         api_response = {"result": f"Deleted {deleted_count} reminders."}
 
-                    # 3. Append the Function Response to history
-                    # Gemini REST API expects a specific 'functionResponse' structure
                     contents.append({
                         "role": "function",
                         "parts": [{
@@ -244,7 +250,6 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                         }]
                     })
                 
-                # Loop continues immediately to send the result back to Gemini
                 continue
 
         except Exception as e:
@@ -252,6 +257,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
             return f"Error: {str(e)}"
 
     return "Sorry, the conversation got stuck in a loop."
+
 def generate_agent_reachout_message(reminder_data, chat_id, reachout_type="agent_reachout"):
     """Generate a personalized message for agent reachout using AI."""
     purpose = reminder_data.get('text', '').replace('AI check-in: ', '')

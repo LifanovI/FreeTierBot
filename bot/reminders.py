@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 
 db = firestore.Client()
 
-def create_reminder(chat_id, text, next_run, interval=None, reminder_type='external', followup=None):
+def create_reminder(chat_id, text, next_run, interval=None, reminder_type='external'):
     """Create a new reminder in Firestore."""
     doc_ref = db.collection('reminders').document()
     data = {
@@ -15,7 +15,6 @@ def create_reminder(chat_id, text, next_run, interval=None, reminder_type='exter
         'next_run': next_run.isoformat() if isinstance(next_run, datetime.datetime) else next_run,
         'interval': interval,
         'type': reminder_type,
-        'followup': followup,
         'active': True,
         'created_at': firestore.SERVER_TIMESTAMP
     }
@@ -49,8 +48,6 @@ def mark_reminder_sent(reminder_ref, interval=None):
     """Mark reminder as sent and schedule next run if recurring."""
     doc = reminder_ref.get()
     data = doc.to_dict()
-    reminder_type = data.get('type', 'external')
-    followup = data.get('followup')
 
     if interval:
         # Calculate next run based on interval
@@ -64,15 +61,5 @@ def mark_reminder_sent(reminder_ref, interval=None):
         # Update next_run
         reminder_ref.update({'next_run': next_run.isoformat()})
     else:
-        # Check for followup before deleting
-        if followup and followup != -1 and reminder_type == 'external':
-            # Create followup internal reminder
-            followup_time = datetime.datetime.utcnow().replace(tzinfo=pytz.UTC) + datetime.timedelta(minutes=followup)
-            create_reminder(
-                data['chat_id'],
-                f"Follow-up check-in: {data['text']}",
-                followup_time,
-                reminder_type='internal'
-            )
         # One-time reminder, delete to save space
         reminder_ref.delete()
