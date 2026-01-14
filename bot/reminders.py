@@ -6,14 +6,14 @@ from dateutil.relativedelta import relativedelta
 
 db = firestore.Client()
 
-def create_reminder(chat_id, text, next_run, interval=None, reminder_type='external'):
+def create_reminder(chat_id, text, next_run, repeat=None, reminder_type='external'):
     """Create a new reminder in Firestore."""
     doc_ref = db.collection('reminders').document()
     data = {
         'chat_id': chat_id,
         'text': text,
         'next_run': next_run.isoformat() if isinstance(next_run, datetime.datetime) else next_run,
-        'interval': interval,
+        'repeat': repeat,
         'type': reminder_type,
         'active': True,
         'created_at': firestore.SERVER_TIMESTAMP
@@ -44,22 +44,55 @@ def get_due_reminders():
     docs = db.collection('reminders').where('active', '==', True).where('next_run', '<=', now.isoformat()).stream()
     return list(docs)
 
-def mark_reminder_sent(reminder_ref, interval=None):
+def get_next_weekday(last_run_dt, repeat_days):
+    """
+    Calculate the next occurrence based on repeat days (1=Monday, ..., 7=Sunday).
+    last_run_dt: The datetime when the reminder was originally supposed to run.
+    """
+    if not repeat_days:
+        return last_run_dt
+
+    # Convert 1-7 (ISO) to 0-6 (Python)
+    target_weekdays = sorted([(d - 1) for d in repeat_days])
+    current_wd = last_run_dt.weekday()
+
+    days_ahead = None
+    # Look for the next day later this week
+    for wd in target_weekdays:
+        if wd > current_wd:
+            days_ahead = wd - current_wd
+            break
+    
+    # If no days left this week, take the first day of next week
+    if days_ahead is None:
+        days_ahead = (7 - current_wd) + target_weekdays[0]
+
+    return last_run_dt + datetime.timedelta(days=days_ahead)
+
+def mark_reminder_sent(reminder_ref):
     """Mark reminder as sent and schedule next run if recurring."""
     doc = reminder_ref.get()
+    if not doc.exists:
+        return
+        
     data = doc.to_dict()
+    repeat = data.get('repeat')
+    
+    # --- IMPORTANT: Re-add your follow-up logic here ---
+    # (If you still want the AI check-ins we discussed earlier)
 
-    if interval:
-        # Calculate next run based on interval
-        next_run = date_parser.parse(data['next_run'])
-        if interval == 'daily':
-            next_run += relativedelta(days=1)
-        elif interval == 'weekly':
-            next_run += relativedelta(weeks=1)
-        elif interval == 'monthly':
-            next_run += relativedelta(months=1)
-        # Update next_run
-        reminder_ref.update({'next_run': next_run.isoformat()})
+    if repeat and len(repeat) > 0:
+        # Calculate next run based on the ORIGINAL scheduled time
+        # to prevent "time drift" caused by execution delays.
+        scheduled_time = date_parser.parse(data['next_run'])
+        if scheduled_time.tzinfo is None:
+            scheduled_time = scheduled_time.replace(tzinfo=pytz.UTC)
+            
+        next_run = get_next_weekday(scheduled_time, repeat)
+        
+        reminder_ref.update({
+            'next_run': next_run.isoformat()
+        })
     else:
-        # One-time reminder, delete to save space
+        # One-time reminder
         reminder_ref.delete()

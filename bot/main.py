@@ -50,25 +50,25 @@ def telegram_webhook(request):
         command, args = parse_command(text)
 
         if command == '/remind':
-            # /remind <time> <text> [interval]
+            # /remind <time> <text> [repeat_days]
             if len(args) < 2:
-                send_message(chat_id, "Usage: /remind <time> <text> [interval]\nExample: /remind 2026-01-15T09:00:00+00:00 workout daily")
+                send_message(chat_id, "Usage: /remind <time> <text> [repeat_days]\nExample: /remind 2026-01-15T09:00:00+00:00 workout 1,3")
                 return 'OK'
 
             # Debug logging
             logging.info(f"Remind command args: {args}")
 
-            # Parse arguments - handle interval at end
-            if len(args) >= 3 and args[-1] in ['daily', 'weekly', 'monthly']:
+            # Parse arguments - handle repeat at end
+            try:
+                repeat = [int(x.strip()) for x in args[-1].split(',')]
                 time_str = args[0]
                 reminder_text = ' '.join(args[1:-1])
-                interval = args[-1]
-            else:
+            except (ValueError, IndexError):
                 time_str = args[0]
                 reminder_text = ' '.join(args[1:])
-                interval = None
+                repeat = None
 
-            logging.info(f"Parsed: time='{time_str}', text='{reminder_text}', interval={interval}")
+            logging.info(f"Parsed: time='{time_str}', text='{reminder_text}', repeat={repeat}")
 
             try:
                 next_run = datetime.datetime.fromisoformat(time_str)
@@ -77,7 +77,7 @@ def telegram_webhook(request):
                 else:
                     next_run = next_run.astimezone(pytz.UTC)
 
-                reminder_id = create_reminder(chat_id, reminder_text, next_run, interval, 'external')
+                reminder_id = create_reminder(chat_id, reminder_text, next_run, repeat, 'external')
                 send_message(chat_id, f"Reminder set for {next_run.strftime('%Y-%m-%d %H:%M %Z')}")
                 logging.info(f"Reminder created: {reminder_id}")
             except Exception as e:
@@ -149,7 +149,6 @@ def scheduler_tick(cloud_event: CloudEvent):
             data = doc.to_dict()
             chat_id = data['chat_id']
             reminder_type = data.get('type', 'external')
-            interval = data.get('interval')
 
             if reminder_type == 'external':
                 # Regular reminder
@@ -161,7 +160,7 @@ def scheduler_tick(cloud_event: CloudEvent):
                 send_message(chat_id, message_text)
             # system type not handled here
 
-            mark_reminder_sent(doc.reference, interval)
+            mark_reminder_sent(doc.reference)
             processed_count += 1
 
         # System reachout check every hour at :00 minutes

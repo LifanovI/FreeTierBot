@@ -48,15 +48,15 @@ def add_chat_message(chat_id, role, content):
         'timestamp': firestore.SERVER_TIMESTAMP
     })
 
-def create_reminder_from_ai(chat_id, next_run_str, text, interval=None, reminder_type='external'):
+def create_reminder_from_ai(chat_id, next_run_str, text, repeat=None, reminder_type='external'):
     """Create a reminder from AI function call with pre-formatted Firebase data."""
     from reminders import create_reminder  # Import here to avoid circular import
-    print(f"DEBUG: Creating reminder - next_run: '{next_run_str}', text: '{text}', interval: {interval}")
+    print(f"DEBUG: Creating reminder - next_run: '{next_run_str}', text: '{text}', repeat: {repeat}")
     try:
         # next_run_str is already in ISO format, pass it directly
-        reminder_id = create_reminder(chat_id, text, next_run_str, interval, reminder_type)
+        reminder_id = create_reminder(chat_id, text, next_run_str, repeat, reminder_type)
         print(f"DEBUG: Reminder created successfully: {reminder_id}")
-        return f"Reminder created: {text} for {next_run_str} {interval}"
+        return f"Reminder created: {text} for {next_run_str} repeat: {repeat}"
     except Exception as e:
         print(f"DEBUG: Reminder creation failed: {str(e)}")
         import traceback
@@ -132,7 +132,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                         "properties": {
                             "next_run": {"type": "string", "description": "ISO datetime string in UTC (e.g., 2026-01-15T09:00:00)"},
                             "text": {"type": "string", "description": "Reminder message text"},
-                            "interval": {"type": "string", "enum": ["daily", "weekly", "monthly"], "description": "Optional recurrence"},
+                            "repeat": {"type": "array", "items": {"type": "integer"}, "description": "Make reminder repeatable for the following days: 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun"},
                         },
                         "required": ["next_run", "text"]
                     }
@@ -219,7 +219,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                             chat_id,
                             func_args.get('next_run', ''),
                             func_args.get('text', ''),
-                            func_args.get('interval'),
+                            func_args.get('repeat'),
                             'internal',
                         )
                         api_response = {"result": res_str}
