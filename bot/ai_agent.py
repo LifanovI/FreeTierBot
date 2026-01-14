@@ -66,36 +66,29 @@ def create_reminder_from_ai(chat_id, next_run_str, text, interval=None, reminder
         return f"Failed to create reminder: {str(e)}"
 
 def get_chat_response(chat_id, message, mode="respond_user"):
-    """Get AI response using direct Gemini API calls."""
+    """Get AI response using direct Gemini API calls with proper Function Calling recursion."""
     api_key = os.environ.get('GEMINI_API_KEY')
     if not api_key:
         logging.error("GEMINI_API_KEY environment variable not set")
         return "Sorry, my AI brain isn't configured properly right now."
 
-    print(f"DEBUG: Using Gemini API key (first 10 chars): {api_key[:10]}...")
-
-    # Get system prompt and history
+    # --- 1. Setup Initial Context ---
     today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
     current_time = datetime.datetime.utcnow().strftime('%H:%M UTC')
-    system_prompt = f"You are a telegram reminder chat bot designed to serve user in a role they define. Today is {today} an current time is {current_time}. User defined role: "
-    system_prompt += get_user_system_prompt(chat_id)
+    system_prompt_text = f"You are a telegram reminder chat bot designed to serve user in a role they define. Today is {today} an current time is {current_time}. User defined role: "
+    system_prompt_text += get_user_system_prompt(chat_id)
+    
+    # Load history
     history = get_chat_history(chat_id)
-
-    # Convert chat history to Gemini format
     contents = []
     for msg in history:
-        if msg['role'] == 'user':
-            contents.append({
-                'role': 'user',
-                'parts': [{'text': msg['content']}]
-            })
-        elif msg['role'] == 'assistant':
-            contents.append({
-                'role': 'model',
-                'parts': [{'text': msg['content']}]
-            })
+        role = 'user' if msg['role'] == 'user' else 'model'
+        contents.append({
+            'role': role,
+            'parts': [{'text': msg['content']}]
+        })
 
-    # Add current message
+    # Add the trigger message
     if mode == "respond_user":
         contents.append({
             'role': 'user',
@@ -106,128 +99,107 @@ def get_chat_response(chat_id, message, mode="respond_user"):
             'role': 'model',
             'parts': [{'text': message}]
         })
-    # Define function declarations for Gemini (only for respond_user mode)
-    tools = None
-    if mode == "respond_user":
-        function_declarations = [
-                    {
-                    "name": "set_reminder",
-                    "description": "Set a reminder for the user. Generate the exact Firebase-compatible format.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "next_run": {
-                                "type": "string",
-                                "description": "ISO datetime string in UTC (e.g., 2026-01-15T09:00:00)"
-                            },
-                            "text": {
-                                "type": "string",
-                                "description": "Reminder message text"
-                            },
-                            "interval": {
-                                "type": "string",
-                                "enum": ["daily", "weekly", "monthly"],
-                                "description": "Optional recurrence interval (omit for one-time reminders)"
-                            },
-                            "followup": {
-                                "type": "integer",
-                                "description": "Minutes after reminder to follow up with AI check-in (default 10), if you have reasons not to follow up on this particular reminder - output -1"
-                            }
-                        },
-                        "required": ["next_run", "text"]
-                    }
-                },
-                {
-                    "name": "check_reminders",
-                    "description": "Retrieve and display all current reminders for the user",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
-                },
-                {
-                    "name": "delete_reminders",
-                    "description": "Delete one or multiple reminders by their IDs",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "ids": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string"
-                                },
-                                "description": "The unique IDs of the reminders to delete"
-                            }
-                        },
-                        "required": ["ids"]
-                    }
-                },
-            ]
-        tools = [{
-            'functionDeclarations': function_declarations
-        }]
 
-    # Prepare Generative Language API request with header authentication
+    # --- 2. Define Tools ---
+    tools = [{
+        'functionDeclarations': [
+            {
+                "name": "set_reminder",
+                "description": "Set a reminder for the user. Generate the exact Firebase-compatible format.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "next_run": {"type": "string", "description": "ISO datetime string in UTC (e.g., 2026-01-15T09:00:00)"},
+                        "text": {"type": "string", "description": "Reminder message text"},
+                        "interval": {"type": "string", "enum": ["daily", "weekly", "monthly"], "description": "Optional recurrence"},
+                        "followup": {"type": "integer", "description": "Minutes after reminder to follow up (default 10), or -1 for none"}
+                    },
+                    "required": ["next_run", "text"]
+                }
+            },
+            {
+                "name": "check_reminders",
+                "description": "Retrieve and display all current reminders for the user",
+                "parameters": {"type": "object", "properties": {}}
+            },
+            {
+                "name": "delete_reminders",
+                "description": "Delete reminders by ID",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "ids": {"type": "array", "items": {"type": "string"}, "description": "IDs to delete"}
+                    },
+                    "required": ["ids"]
+                }
+            }
+        ]
+    }]
+
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-
     headers = {
         'x-goog-api-key': api_key,
         'Content-Type': 'application/json'
     }
 
-    payload = {
-        'contents': contents,
-        'system_instruction': {
-            'parts': {'text': system_prompt}
-        },
-    }
-    if tools:
-        payload['tools'] = tools
+    # --- 3. Main Interaction Loop ---
+    # We loop to handle potential multiple function calls in a row (e.g., check -> delete -> respond)
+    max_turns = 5
+    current_turn = 0
 
-    print(f"DEBUG: Calling Gemini API with {len(contents)} messages")
-    print(f"DEBUG: {contents}")
+    while current_turn < max_turns:
+        current_turn += 1
+        
+        payload = {
+            'contents': contents,
+            'system_instruction': {'parts': {'text': system_prompt_text}},
+            'tools': tools
+        }
 
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
+        try:
+            print(f"DEBUG: Turn {current_turn} - Sending request to Gemini...")
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            response.raise_for_status()
+            data = response.json()
 
-        data = response.json()
-        print("DEBUG: Gemini API call successful")
-        print(f"DEBUG: Raw API response: {json.dumps(data, indent=2)}")
+            if 'candidates' not in data or not data['candidates']:
+                return "Sorry, I didn't get a response."
 
-        # Parse response
-        if 'candidates' not in data or not data['candidates']:
-            logging.error("No candidates in Gemini response")
-            return "Sorry, I didn't get a proper response from my AI brain."
+            candidate = data['candidates'][0]
+            content = candidate.get('content', {})
+            parts = content.get('parts', [])
 
-        candidate = data['candidates'][0]
+            # Check if we got a pure text response or a function call
+            function_calls = [part['functionCall'] for part in parts if 'functionCall' in part]
 
-        if 'content' not in candidate:
-            logging.error("No content in Gemini response candidate")
-            return "Sorry, I got an incomplete response from my AI brain."
+            if not function_calls:
+                # -- FINAL TEXT RESPONSE --
+                text_response = "".join([p.get('text', '') for p in parts])
+                
+                # Save to DB and return
+                if mode == "respond_user":
+                    add_chat_message(chat_id, "user", message) # Only save user msg on first valid completion
+                add_chat_message(chat_id, "assistant", text_response)
+                
+                return text_response
 
-        content = candidate['content']
+            else:
+                # -- HANDLE FUNCTION CALL --
+                # 1. Add the Assistant's "Function Call" message to history so Gemini knows it asked for it
+                contents.append(content)
 
-        # Extract text response
-        text_response = ""
-        function_results = []
-
-        if 'parts' in content:
-            for part in content['parts']:
-                if 'text' in part:
-                    text_response += part['text']
-                elif 'functionCall' in part:
-                    # Handle function call
-                    func_call = part['functionCall']
+                # 2. Process each function call
+                for func_call in function_calls:
                     func_name = func_call['name']
                     func_args = func_call.get('args', {})
+                    print(f"DEBUG: Executing function: {func_name}")
 
-                    print(f"DEBUG: Processing function call: {func_name}")
+                    api_response = {}
 
+                    # Execute Python Logic
                     if func_name == 'set_reminder':
                         followup = func_args.get('followup', 10)
-                        result = create_reminder_from_ai(
+                        res_str = create_reminder_from_ai(
                             chat_id,
                             func_args.get('next_run', ''),
                             func_args.get('text', ''),
@@ -235,78 +207,45 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                             'internal',
                             followup
                         )
-                        function_results.append(result)
-                    elif func_name == 'set_agent_reachout':
-                        result = create_reminder_from_ai(
-                            chat_id,
-                            func_args.get('next_run', ''),
-                            f"AI check-in: {func_args.get('purpose', '')}",
-                        )
-                        function_results.append(result)
+                        api_response = {"result": res_str}
+
                     elif func_name == 'check_reminders':
                         reminders = get_reminders(chat_id)
-                        result = "I've just checked user's active reminders:"
                         if not reminders:
-                            result += " No active reminders."
+                            api_response = {"result": "No active reminders found."}
                         else:
-                            result += "Active reminders:\n" + "\n".join([f"- {r['text']} at {r['next_run']} (ID: {r['id']})" for r in reminders])
-                        result += " now I can continue with the user request"
-                        add_chat_message(chat_id, "user", message)
-                        return get_chat_response(chat_id, result, mode="agent_reachout")
+                            # Send simplified list back to AI
+                            rem_list = [{"id": r['id'], "text": r['text'], "time": r['next_run']} for r in reminders]
+                            api_response = {"result": rem_list}
+
                     elif func_name == 'delete_reminders':
                         ids = func_args.get('ids', [])
-                        if not ids:
-                            result = "No reminder IDs provided."
-                        else:
-                            deleted = 0
-                            failed = 0
-                            for reminder_id in ids:
-                                if delete_reminder(chat_id, reminder_id):
-                                    deleted += 1
-                                else:
-                                    failed += 1
-                            if failed == 0:
-                                result = f"Successfully deleted {deleted} reminder(s)."
-                            else:
-                                result = f"Deleted {deleted} reminder(s), {failed} failed."
-                        function_results.append(result)
+                        deleted_count = 0
+                        for rid in ids:
+                            if delete_reminder(chat_id, rid):
+                                deleted_count += 1
+                        api_response = {"result": f"Deleted {deleted_count} reminders."}
 
-        # Combine text response with function results
-        final_response = text_response
-        if function_results:
-            final_response += "\n\n" + "\n".join(function_results)
+                    # 3. Append the Function Response to history
+                    # Gemini REST API expects a specific 'functionResponse' structure
+                    contents.append({
+                        "role": "function",
+                        "parts": [{
+                            "functionResponse": {
+                                "name": func_name,
+                                "response": api_response
+                            }
+                        }]
+                    })
+                
+                # Loop continues immediately to send the result back to Gemini
+                continue
 
-        # Store messages only in respond_user mode
-        if mode == "respond_user":
-            add_chat_message(chat_id, "user", message)
-        add_chat_message(chat_id, "assistant", final_response)
-        print(f"Final response is: {final_response}")
-        return final_response
+        except Exception as e:
+            print(f"Error in Gemini Loop: {e}")
+            return f"Error: {str(e)}"
 
-    except requests.exceptions.RequestException as e:
-        print(f"Gemini API request error: {str(e)}")
-        error_msg = f"Sorry, I couldn't connect to my AI brain right now: {str(e)}"
-        if mode == "respond_user":
-            add_chat_message(chat_id, "user", message)
-        add_chat_message(chat_id, "assistant", error_msg)
-        return error_msg
-    except json.JSONDecodeError as e:
-        print(f"JSON decode error: {str(e)}")
-        error_msg = "Sorry, I got a malformed response from my AI brain."
-        if mode == "respond_user":
-            add_chat_message(chat_id, "user", message)
-        add_chat_message(chat_id, "assistant", error_msg)
-        return error_msg
-    except Exception as e:
-        print(f"Unexpected error in Gemini API call: {str(e)}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
-        error_msg = f"Sorry, I encountered an unexpected error: {str(e)}"
-        if mode == "respond_user":
-            add_chat_message(chat_id, "user", message)
-        add_chat_message(chat_id, "assistant", error_msg)
-        return error_msg
-
+    return "Sorry, the conversation got stuck in a loop."
 def generate_agent_reachout_message(reminder_data, chat_id):
     """Generate a personalized message for agent reachout using AI."""
     purpose = reminder_data.get('text', '').replace('AI check-in: ', '')
