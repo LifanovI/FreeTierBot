@@ -66,7 +66,11 @@ def create_reminder_from_ai(chat_id, next_run_str, text, interval=None, reminder
         return f"Failed to create reminder: {str(e)}"
 
 def get_chat_response(chat_id, message, mode="respond_user"):
-    """Get AI response using direct Gemini API calls with proper Function Calling recursion."""
+    """Get AI response using direct Gemini API calls with proper Function Calling recursion.
+    mode defines the behavior of the function:
+    "respond_user" - direct response to user
+    "agent_reachout" - continue conversation based on internal agent prompt (e.g. to continue chat after delay)
+    "agent_reminder" - agent generates message for scheduled reminder"""
     api_key = os.environ.get('GEMINI_API_KEY')
     if not api_key:
         logging.error("GEMINI_API_KEY environment variable not set")
@@ -77,6 +81,8 @@ def get_chat_response(chat_id, message, mode="respond_user"):
     current_time = datetime.datetime.utcnow().strftime('%H:%M UTC')
     system_prompt_text = f"You are a telegram reminder chat bot designed to serve user in a role they define. Today is {today} an current time is {current_time}. User defined role: "
     system_prompt_text += get_user_system_prompt(chat_id)
+    if mode == "agent_reminder":
+        system_prompt_text += f"!IMPORTANT! You are reaching out regarding a reminder focus on it and not on the chat history! The reminder you must bring is: {message}"
     
     # Load history
     history = get_chat_history(chat_id)
@@ -94,7 +100,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
             'role': 'user',
             'parts': [{'text': message}]
         })
-    elif mode == "agent_reachout":
+    elif mode == "agent_reachout" or mode == "agent_reminder":
         contents.append({
             'role': 'model',
             'parts': [{'text': message}]
@@ -246,10 +252,10 @@ def get_chat_response(chat_id, message, mode="respond_user"):
             return f"Error: {str(e)}"
 
     return "Sorry, the conversation got stuck in a loop."
-def generate_agent_reachout_message(reminder_data, chat_id):
+def generate_agent_reachout_message(reminder_data, chat_id, reachout_type="agent_reachout"):
     """Generate a personalized message for agent reachout using AI."""
     purpose = reminder_data.get('text', '').replace('AI check-in: ', '')
     ai_prompt = f"Generate a friendly, natural check-in message about: {purpose}"
     doc_ref = db.collection('users').document(str(chat_id))
     doc_ref.set({'last_ai_message': firestore.SERVER_TIMESTAMP}, merge=True)
-    return get_chat_response(chat_id, ai_prompt, mode="agent_reachout")
+    return get_chat_response(chat_id, ai_prompt, mode=reachout_type)

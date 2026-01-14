@@ -157,7 +157,7 @@ def scheduler_tick(cloud_event: CloudEvent):
                 send_message(chat_id, message_text)
             elif reminder_type == 'internal':
                 # AI-triggered reminder
-                message_text = generate_agent_reachout_message(data, chat_id)
+                message_text = generate_agent_reachout_message(data, chat_id, reachout_type='agent_reminder')
                 send_message(chat_id, message_text)
             # system type not handled here
 
@@ -178,7 +178,7 @@ def scheduler_tick(cloud_event: CloudEvent):
                 last_three_from_ai = all(doc.to_dict().get('role') == 'assistant' for doc in last_messages)
 
                 if not last_three_from_ai and random.random() < 0.2:  # 20% probability, but skip if last 3 were from AI
-                    message_text = generate_agent_reachout_message({'text': 'general check-in'}, chat_id)
+                    message_text = generate_agent_reachout_message({'text': 'general check-in'}, chat_id, reachout_type='agent_reachout')
                     send_message(chat_id, message_text)
                     # Update last AI message timestamp
                     user_doc.reference.set({'last_ai_message': firestore.SERVER_TIMESTAMP}, merge=True)
