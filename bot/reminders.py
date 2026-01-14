@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 
 db = firestore.Client()
 
-def create_reminder(chat_id, text, next_run, repeat=None, reminder_type='external'):
+def create_reminder(chat_id, text, next_run, repeat=None):
     """Create a new reminder in Firestore."""
     doc_ref = db.collection('reminders').document()
     data = {
@@ -14,18 +14,15 @@ def create_reminder(chat_id, text, next_run, repeat=None, reminder_type='externa
         'text': text,
         'next_run': next_run.isoformat() if isinstance(next_run, datetime.datetime) else next_run,
         'repeat': repeat,
-        'type': reminder_type,
         'active': True,
         'created_at': firestore.SERVER_TIMESTAMP
     }
     doc_ref.set(data)
     return doc_ref.id
 
-def get_reminders(chat_id, reminder_type=None):
+def get_reminders(chat_id):
     """Get all active reminders for a chat, optionally filtered by type."""
     query = db.collection('reminders').where('chat_id', '==', chat_id).where('active', '==', True)
-    if reminder_type:
-        query = query.where('type', '==', reminder_type)
     docs = query.stream()
     return [{'id': doc.id, **doc.to_dict()} for doc in docs]
 

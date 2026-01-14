@@ -85,7 +85,7 @@ def telegram_webhook(request):
                 send_message(chat_id, f"Invalid time format '{time_str}'. Expected ISO datetime string in UTC (e.g., 2026-01-15T09:00:00+00:00)")
 
         elif command == '/list':
-            reminders = get_reminders(chat_id, 'external')
+            reminders = get_reminders(chat_id)
             if not reminders:
                 send_message(chat_id, "No active reminders.")
             else:
@@ -148,16 +148,8 @@ def scheduler_tick(cloud_event: CloudEvent):
         for doc in due_reminders:
             data = doc.to_dict()
             chat_id = data['chat_id']
-            reminder_type = data.get('type', 'external')
-
-            if reminder_type == 'external':
-                # Regular reminder
-                message_text = f"Reminder: {data['text']}"
-                send_message(chat_id, message_text)
-            elif reminder_type == 'internal':
-                # AI-triggered reminder
-                message_text = generate_agent_reachout_message(data, chat_id, reachout_type='agent_reminder')
-                send_message(chat_id, message_text)
+            message_text = f"Reminder: {data['text']}"
+            send_message(chat_id, message_text)
             # system type not handled here
 
             mark_reminder_sent(doc.reference)

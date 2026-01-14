@@ -48,13 +48,13 @@ def add_chat_message(chat_id, role, content):
         'timestamp': firestore.SERVER_TIMESTAMP
     })
 
-def create_reminder_from_ai(chat_id, next_run_str, text, repeat=None, reminder_type='external'):
+def create_reminder_from_ai(chat_id, next_run_str, text, repeat=None):
     """Create a reminder from AI function call with pre-formatted Firebase data."""
     from reminders import create_reminder  # Import here to avoid circular import
     print(f"DEBUG: Creating reminder - next_run: '{next_run_str}', text: '{text}', repeat: {repeat}")
     try:
         # next_run_str is already in ISO format, pass it directly
-        reminder_id = create_reminder(chat_id, text, next_run_str, repeat, reminder_type)
+        reminder_id = create_reminder(chat_id, text, next_run_str, repeat)
         print(f"DEBUG: Reminder created successfully: {reminder_id}")
         return f"Reminder created: {text} for {next_run_str} repeat: {repeat}"
     except Exception as e:
@@ -68,7 +68,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
     mode defines the behavior of the function:
     "respond_user" - direct response to user
     "agent_reachout" - continue conversation based on internal agent prompt (e.g. to continue chat after delay)
-    "agent_reminder" - agent generates message for scheduled reminder"""
+    """
     print(f"DEBUG: calling Gemini with {message} in mode: {mode}")
     api_key = os.environ.get('GEMINI_API_KEY')
     if not api_key:
@@ -80,10 +80,6 @@ def get_chat_response(chat_id, message, mode="respond_user"):
     current_time = datetime.datetime.utcnow().strftime('%H:%M UTC')
     system_prompt_text = f"You are a telegram reminder chat bot designed to serve user in a role they define. Today is {today} an current time is {current_time}. User defined role: "
     system_prompt_text += get_user_system_prompt(chat_id)
-    
-    if mode == "agent_reminder":
-        # Hard constraint in prompt to prevent confusion
-        system_prompt_text += f"You are currently sending a notification for a reminder that is already set. Just gently remind the user: {message}"
     
     # Load history
     history = get_chat_history(chat_id)
@@ -108,17 +104,9 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                     'role': 'user',
                     'parts': [{'text': f"(Internal System Trigger): Continue the conversation naturally and convey the following: {message}"}]
                 })
-    elif mode == "agent_reminder":
-                # Even for reachout, we treat the 'purpose' as a user-like request 
-                # so the model generates the response
-                contents.append({
-                    'role': 'user',
-                    'parts': [{'text': f"Do not mind previous conversation. Please convey this reminder: {message}"}]
-                })
 
     # --- 2. Define Tools (CONDITIONALLY) ---
     # We ONLY define tools if we are responding to a user. 
-    # If we are just sending a reminder (agent_reminder), we disable tools to prevent loops.
     tools = None
     
     if mode == "respond_user": 
