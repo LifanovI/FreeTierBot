@@ -48,20 +48,25 @@ def add_chat_message(chat_id, role, content):
         'timestamp': firestore.SERVER_TIMESTAMP
     })
 
-def create_reminder_from_ai(chat_id, next_run_str, text, repeat=None):
-    """Create a reminder from AI function call with pre-formatted Firebase data."""
+def create_reminder_from_ai(chat_id, next_run_str, text, repeat=None, reminder_id=None):
+    """Create or update a reminder from AI function call with pre-formatted Firebase data."""
     from reminders import create_reminder  # Import here to avoid circular import
-    print(f"DEBUG: Creating reminder - next_run: '{next_run_str}', text: '{text}', repeat: {repeat}")
+    action = "Updating" if reminder_id else "Creating"
+    print(f"DEBUG: {action} reminder - next_run: '{next_run_str}', text: '{text}', repeat: {repeat}, id: {reminder_id}")
     try:
         # next_run_str is already in ISO format, pass it directly
-        reminder_id = create_reminder(chat_id, text, next_run_str, repeat)
-        print(f"DEBUG: Reminder created successfully: {reminder_id}")
-        return f"Reminder created: {text} for {next_run_str} repeat: {repeat}"
+        result_id = create_reminder(chat_id, text, next_run_str, repeat, reminder_id)
+        if result_id:
+            action_done = "updated" if reminder_id else "created"
+            print(f"DEBUG: Reminder {action_done} successfully: {result_id}")
+            return f"Reminder {action_done}: {text} for {next_run_str} repeat: {repeat}"
+        else:
+            return "Failed to update reminder: invalid ID or permission denied"
     except Exception as e:
-        print(f"DEBUG: Reminder creation failed: {str(e)}")
+        print(f"DEBUG: Reminder creation/update failed: {str(e)}")
         import traceback
         print(f"DEBUG: Traceback: {traceback.format_exc()}")
-        return f"Failed to create reminder: {str(e)}"
+        return f"Failed to set reminder: {str(e)}"
 
 def get_chat_response(chat_id, message, mode="respond_user"):
     """Get AI response using direct Gemini API calls with proper Function Calling recursion.
@@ -121,6 +126,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                             "next_run": {"type": "string", "description": "ISO datetime string in UTC (e.g., 2026-01-15T09:00:00)"},
                             "text": {"type": "string", "description": "Reminder message text"},
                             "repeat": {"type": "array", "items": {"type": "integer"}, "description": "Make reminder repeatable for the following days: 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun"},
+                            "id": {"type": "string", "description": "Optional reminder ID to update existing reminder"},
                         },
                         "required": ["next_run", "text"]
                     }
@@ -208,7 +214,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                             func_args.get('next_run', ''),
                             func_args.get('text', ''),
                             func_args.get('repeat'),
-                            'internal',
+                            func_args.get('id'),
                         )
                         api_response = {"result": res_str}
 

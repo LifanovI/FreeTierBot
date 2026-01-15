@@ -6,23 +6,35 @@ from dateutil.relativedelta import relativedelta
 
 db = firestore.Client()
 
-def create_reminder(chat_id, text, next_run, repeat=None):
-    """Create a new reminder in Firestore."""
-    doc_ref = db.collection('reminders').document()
-    data = {
-        'chat_id': chat_id,
-        'text': text,
-        'next_run': next_run.isoformat() if isinstance(next_run, datetime.datetime) else next_run,
-        'repeat': repeat,
-        'active': True,
-        'created_at': firestore.SERVER_TIMESTAMP
-    }
-    doc_ref.set(data)
-    return doc_ref.id
+def create_reminder(chat_id, text, next_run, repeat=None, reminder_id=None):
+    """Create a new reminder or update existing one in Firestore."""
+    if reminder_id:
+        doc_ref = db.collection('reminders').document(reminder_id)
+        doc = doc_ref.get()
+        if not doc.exists or doc.to_dict().get('chat_id') != chat_id:
+            return None
+        update_data = {
+            'text': text,
+            'next_run': next_run.isoformat() if isinstance(next_run, datetime.datetime) else next_run,
+            'repeat': repeat
+        }
+        doc_ref.update(update_data)
+        return reminder_id
+    else:
+        doc_ref = db.collection('reminders').document()
+        data = {
+            'chat_id': chat_id,
+            'text': text,
+            'next_run': next_run.isoformat() if isinstance(next_run, datetime.datetime) else next_run,
+            'repeat': repeat,
+            'created_at': firestore.SERVER_TIMESTAMP
+        }
+        doc_ref.set(data)
+        return doc_ref.id
 
 def get_reminders(chat_id):
     """Get all active reminders for a chat, optionally filtered by type."""
-    query = db.collection('reminders').where('chat_id', '==', chat_id).where('active', '==', True)
+    query = db.collection('reminders').where('chat_id', '==', chat_id)
     docs = query.stream()
     return [{'id': doc.id, **doc.to_dict()} for doc in docs]
 
@@ -38,7 +50,7 @@ def delete_reminder(chat_id, reminder_id):
 def get_due_reminders():
     """Get all reminders that are due (next_run <= now)."""
     now = datetime.datetime.utcnow().replace(tzinfo=pytz.UTC)
-    docs = db.collection('reminders').where('active', '==', True).where('next_run', '<=', now.isoformat()).stream()
+    docs = db.collection('reminders').where('next_run', '<=', now.isoformat()).stream()
     return list(docs)
 
 def get_next_weekday(last_run_dt, repeat_days):
