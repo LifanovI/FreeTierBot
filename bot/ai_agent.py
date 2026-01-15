@@ -218,7 +218,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                             api_response = {"result": "No active reminders found."}
                         else:
                             rem_list = [{"id": r['id'], "text": r['text'], "time": r['next_run']} for r in reminders]
-                            api_response = {"result": rem_list}
+                            api_response = {"reminders": rem_list, "instruction": "Do not disclose reminder IDs to the user."}
 
                     elif func_name == 'delete_reminders':
                         ids = func_args.get('ids', [])
