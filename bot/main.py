@@ -6,7 +6,7 @@ import os
 import random
 from telegram import send_message, parse_command
 from reminders import create_reminder, get_reminders, delete_reminder, get_due_reminders, mark_reminder_sent
-from ai_agent import get_chat_response, set_user_system_prompt, generate_agent_reachout_message
+from ai_agent import get_chat_response, set_user_system_prompt, set_user_api_exhausted_message, generate_agent_reachout_message
 from google.cloud import firestore
 import datetime
 import pytz
@@ -78,7 +78,7 @@ def telegram_webhook(request):
                     next_run = next_run.astimezone(pytz.UTC)
 
                 reminder_id = create_reminder(chat_id, reminder_text, next_run, repeat, 'external')
-                send_message(chat_id, f"Reminder set for {next_run.strftime('%Y-%m-%d %H:%M %Z')}")
+                send_message(chat_id, f"Reminder set for {next_run.strftime('%Y-%m-%d %H:%M')}")
                 logging.info(f"Reminder created: {reminder_id}")
             except Exception as e:
                 logging.error(f"Time parsing failed for '{time_str}': {str(e)}")
@@ -91,7 +91,9 @@ def telegram_webhook(request):
             else:
                 msg = "Active reminders:\n"
                 for i, r in enumerate(reminders, 1):
-                    msg += f"{i}. {r['text']} - {r['next_run']}\n"
+                    dt = datetime.datetime.fromisoformat(r['next_run'])
+                    formatted_time = dt.strftime('%Y-%m-%d___%H:%M')
+                    msg += f"{i}. {r['text']} - {formatted_time}\n"
                 send_message(chat_id, msg)
 
         elif command == '/delete':
@@ -120,6 +122,14 @@ def telegram_webhook(request):
             set_user_system_prompt(chat_id, prompt_text)
             send_message(chat_id, f"System prompt updated! I'll now respond according to: {prompt_text}")
 
+        elif command == '/set_api_exhausted_message':
+            if not args:
+                send_message(chat_id, "Usage: /set_api_exhausted_message <your message>\nExample: /set_api_exhausted_message Sorry, the AI is taking a break. Try again later!")
+                return 'OK'
+            message_text = ' '.join(args)
+            set_user_api_exhausted_message(chat_id, message_text)
+            send_message(chat_id, f"API exhausted message updated! When the API is exhausted, I'll respond with: {message_text}")
+
         elif command is None:
             # Not a command, treat as natural language message to AI
             ai_response = get_chat_response(chat_id, text, mode="respond_user")
@@ -131,7 +141,7 @@ def telegram_webhook(request):
             doc_ref.set({'last_ai_message': firestore.SERVER_TIMESTAMP}, merge=True)
 
         else:
-            send_message(chat_id, "Unknown command. Use /remind, /list, /delete, or /system_prompt.")
+            send_message(chat_id, "Unknown command. Use /remind, /list, /delete, /system_prompt, or /set_api_exhausted_message.")
 
         return 'OK'
 

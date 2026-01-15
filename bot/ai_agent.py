@@ -26,7 +26,23 @@ def set_user_system_prompt(chat_id, prompt):
         'updated_at': firestore.SERVER_TIMESTAMP
     }, merge=True)
 
-def get_chat_history(chat_id, limit=3):
+def get_user_api_exhausted_message(chat_id):
+    """Get user's api_exhausted_message from Firestore."""
+    doc_ref = db.collection('users').document(str(chat_id))
+    doc = doc_ref.get()
+    if doc.exists:
+        return doc.to_dict().get('api_exhausted_message', '')
+    return ''
+
+def set_user_api_exhausted_message(chat_id, message):
+    """Set user's api_exhausted_message in Firestore."""
+    doc_ref = db.collection('users').document(str(chat_id))
+    doc_ref.set({
+        'api_exhausted_message': message,
+        'updated_at': firestore.SERVER_TIMESTAMP
+    }, merge=True)
+
+def get_chat_history(chat_id, limit=10):
     """Get recent chat history for user."""
     docs = db.collection('chat_history').where('chat_id', '==', chat_id).order_by('timestamp', direction=firestore.Query.DESCENDING).limit(limit).stream()
     messages = []
@@ -223,7 +239,11 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                         if not reminders:
                             api_response = {"result": "No active reminders found."}
                         else:
-                            rem_list = [{"id": r['id'], "text": r['text'], "time": r['next_run']} for r in reminders]
+                            rem_list = []
+                            for r in reminders:
+                                dt = datetime.datetime.fromisoformat(r['next_run'])
+                                formatted_time = dt.strftime('%Y-%m-%d %H:%M')
+                                rem_list.append({"id": r['id'], "text": r['text'], "time": formatted_time})
                             api_response = {"reminders": rem_list, "instruction": "Do not disclose reminder IDs to the user."}
 
                     elif func_name == 'delete_reminders':
@@ -248,6 +268,12 @@ def get_chat_response(chat_id, message, mode="respond_user"):
 
         except Exception as e:
             print(f"Error in Gemini Loop: {e}")
+            if isinstance(e, requests.HTTPError) and e.response.status_code == 429:
+                custom_message = get_user_api_exhausted_message(chat_id)
+                if custom_message:
+                    return custom_message
+                else:
+                    return "API is currently exhausted, please try again later."
             return f"Error: {str(e)}"
 
     return "Sorry, the conversation got stuck in a loop."
