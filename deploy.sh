@@ -68,6 +68,16 @@ echo "✅ Configuration created"
 # Navigate to terraform directory
 cd terraform
 
+# Select or create workspace for the project
+echo ""
+echo "🔄 Selecting Terraform workspace..."
+if terraform workspace select $PROJECT_ID 2>/dev/null; then
+    echo "✅ Switched to existing workspace '$PROJECT_ID'"
+else
+    terraform workspace new $PROJECT_ID
+    echo "✅ Created new workspace '$PROJECT_ID'"
+fi
+
 # Initialize Terraform
 echo ""
 echo "🚀 Initializing Terraform..."
@@ -95,6 +105,7 @@ echo "✅ Webhook Secret: [HIDDEN]"
 # Create Firestore composite index for chat history
 echo ""
 echo "📊 Creating Firestore index for chat history..."
+echo "   Note: Index creation may take 5-10 minutes to complete"
 if gcloud firestore indexes composite create \
   --collection-group=chat_history \
   --field-config field-path=chat_id,order=ascending \
@@ -102,7 +113,6 @@ if gcloud firestore indexes composite create \
   --project=$PROJECT_ID \
   --quiet; then
     echo "✅ Firestore index creation initiated"
-    echo "   Note: Index creation may take 5-10 minutes to complete"
 else
     echo "⚠️  Index creation failed or already exists (this is usually OK)"
 fi
@@ -110,6 +120,7 @@ fi
 # Create Firestore composite index for reminders
 echo ""
 echo "📊 Creating Firestore index for reminders..."
+echo "   Note: Index creation may take 5-10 minutes to complete"
 if gcloud firestore indexes composite create \
   --collection-group=reminders \
   --field-config field-path=active,order=ascending \
@@ -117,7 +128,6 @@ if gcloud firestore indexes composite create \
   --project=$PROJECT_ID \
   --quiet; then
     echo "✅ Reminders Firestore index creation initiated"
-    echo "   Note: Index creation may take 5-10 minutes to complete"
 else
     echo "⚠️  Reminders index creation failed or already exists (this is usually OK)"
 fi
@@ -158,4 +168,4 @@ echo ""
 echo "💡 Tip: The bot checks for due reminders every minute"
 echo "🤖 Try chatting naturally - the AI coach will respond intelligently!"
 echo ""
-echo "To destroy the infrastructure later: cd terraform && terraform destroy"
+echo "To destroy the infrastructure later: cd terraform && terraform workspace select $PROJECT_ID && terraform destroy"

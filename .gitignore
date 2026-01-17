@@ -1,6 +1,6 @@
 # Terraform - Sensitive files containing secrets and state
-terraform/terraform.tfstate
-terraform/terraform.tfstate.backup
+**/terraform.tfstate
+**/terraform.tfstate.backup
 terraform/terraform.tfvars
 terraform/.terraform/
 
