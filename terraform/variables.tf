@@ -39,3 +39,9 @@ variable "webhook_secret" {
   sensitive   = true
   default     = null
 }
+
+variable "whitelist_user_ids" {
+  description = "Comma-separated list of Telegram user IDs allowed to use the bot (empty for public access)"
+  type        = string
+  default     = ""
+}

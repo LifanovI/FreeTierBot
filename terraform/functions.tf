@@ -36,8 +36,9 @@ resource "google_cloudfunctions2_function" "telegram_webhook" {
     available_memory   = "256M"
     timeout_seconds    = 60
     environment_variables = {
-      PROJECT_ID     = var.project_id
-      WEBHOOK_SECRET = random_password.webhook_secret.result
+      PROJECT_ID         = var.project_id
+      WEBHOOK_SECRET     = random_password.webhook_secret.result
+      WHITELIST_USER_IDS = var.whitelist_user_ids
     }
     secret_environment_variables {
       key        = "TELEGRAM_BOT_TOKEN"

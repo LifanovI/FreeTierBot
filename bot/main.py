@@ -42,10 +42,19 @@ def telegram_webhook(request):
 
         message = update['message']
         chat_id = message.get('chat', {}).get('id')
+        user_id = message.get('from', {}).get('id')
         text = message.get('text', '')
 
-        if not chat_id or not text:
+        if not chat_id or not text or not user_id:
             return 'Invalid message', 400
+
+        # Check whitelist if configured
+        whitelist = os.environ.get('WHITELIST_USER_IDS', '').strip()
+
+        if whitelist:
+            print(f"List of whitelisted users is: {whitelist} and user_id is {user_id}")
+            if str(user_id) not in [uid.strip() for uid in whitelist.split(',')]:
+                return 'OK'
 
         command, args = parse_command(text)
 
@@ -77,7 +86,7 @@ def telegram_webhook(request):
                 else:
                     next_run = next_run.astimezone(pytz.UTC)
 
-                reminder_id = create_reminder(chat_id, reminder_text, next_run, repeat, 'external')
+                reminder_id = create_reminder(chat_id, reminder_text, next_run, repeat)
                 send_message(chat_id, f"Reminder set for {next_run.strftime('%Y-%m-%d %H:%M')}")
                 logging.info(f"Reminder created: {reminder_id}")
             except Exception as e:
@@ -102,7 +111,7 @@ def telegram_webhook(request):
                 return 'OK'
             try:
                 idx = int(args[0]) - 1
-                reminders = get_reminders(chat_id, 'external')
+                reminders = get_reminders(chat_id)
                 if 0 <= idx < len(reminders):
                     reminder_id = reminders[idx]['id']
                     if delete_reminder(chat_id, reminder_id):

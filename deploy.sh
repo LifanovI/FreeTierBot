@@ -51,6 +51,8 @@ if [ -z "$GEMINI_KEY" ]; then
     exit 1
 fi
 
+read -p "Enter whitelist user IDs (comma-separated, leave empty for public access, numbers only(!) like 1016669999, NOT @UseName): " WHITELIST_IDS
+
 # Create terraform.tfvars
 echo ""
 echo "📝 Creating terraform configuration..."
@@ -58,6 +60,7 @@ cat > terraform/terraform.tfvars << EOF
 project_id         = "$PROJECT_ID"
 telegram_bot_token = "$BOT_TOKEN"
 gemini_api_key     = "$GEMINI_KEY"
+whitelist_user_ids = "$WHITELIST_IDS"
 EOF
 
 echo "✅ Configuration created"
