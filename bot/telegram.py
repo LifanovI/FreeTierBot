@@ -6,7 +6,7 @@ def get_bot_token():
     """Retrieve Telegram bot token from environment."""
     return os.environ['TELEGRAM_BOT_TOKEN']
 
-def send_message(chat_id, text, bot_token=None):
+def send_message(chat_id, text, bot_token=None, reply_markup=None):
     if bot_token is None:
         bot_token = get_bot_token()
 
@@ -25,6 +25,8 @@ def send_message(chat_id, text, bot_token=None):
         }
         if parse_mode:
             payload["parse_mode"] = parse_mode
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
         response = requests.post(url, json=payload)
         print(f"Response status: {response.status_code}")
         print(f"Response body: {response.json()}")
@@ -42,6 +44,20 @@ def set_webhook(url, bot_token=None):
         "url": url
     }
     response = requests.post(webhook_url, json=payload)
+    return response.json()
+
+def answer_callback_query(callback_query_id, text=None, bot_token=None):
+    """Answer a callback query to acknowledge button press."""
+    if bot_token is None:
+        bot_token = get_bot_token()
+
+    url = f"https://api.telegram.org/bot{bot_token}/answerCallbackQuery"
+    payload = {
+        "callback_query_id": callback_query_id
+    }
+    if text:
+        payload["text"] = text
+    response = requests.post(url, json=payload)
     return response.json()
 
 def parse_command(text):

@@ -4,16 +4,20 @@ import json
 import logging
 import os
 import random
-from telegram import send_message, parse_command
+from telegram import send_message, parse_command, answer_callback_query
 from reminders import create_reminder, get_reminders, delete_reminder, get_due_reminders, mark_reminder_sent
 from ai_agent import get_chat_response, set_user_system_prompt, set_user_api_exhausted_message, generate_agent_reachout_message
+from setup_handlers import process_setup_callback, start_timezone_setup
 from google.cloud import firestore
 import datetime
 import pytz
+from utils import format_repeat_days
 
 db = firestore.Client()
 
 logging.basicConfig(level=logging.INFO)
+
+
 
 @functions_framework.http
 def telegram_webhook(request):
@@ -37,120 +41,142 @@ def telegram_webhook(request):
 
         # Handle different update types
         if 'message' in update:
-            # Process message as before
             message = update['message']
+            chat_id = message.get('chat', {}).get('id')
+            user_id = message.get('from', {}).get('id')
+            text = message.get('text', '')
 
-        message = update['message']
-        chat_id = message.get('chat', {}).get('id')
-        user_id = message.get('from', {}).get('id')
-        text = message.get('text', '')
+            if not chat_id or not text or not user_id:
+                return 'Invalid message', 400
 
-        if not chat_id or not text or not user_id:
-            return 'Invalid message', 400
+            # Check whitelist if configured
+            whitelist = os.environ.get('WHITELIST_USER_IDS', '').strip()
 
-        # Check whitelist if configured
-        whitelist = os.environ.get('WHITELIST_USER_IDS', '').strip()
+            if whitelist:
+                print(f"List of whitelisted users is: {whitelist} and user_id is {user_id}")
+                if str(user_id) not in [uid.strip() for uid in whitelist.split(',')]:
+                    return 'OK'
 
-        if whitelist:
-            print(f"List of whitelisted users is: {whitelist} and user_id is {user_id}")
-            if str(user_id) not in [uid.strip() for uid in whitelist.split(',')]:
-                return 'OK'
+            command, args = parse_command(text)
 
-        command, args = parse_command(text)
+            if command == '/remind':
+                # /remind <time> <text> [repeat_days]
+                if len(args) < 2:
+                    send_message(chat_id, "Usage: /remind <time> <text> [repeat_days]\nExample: /remind 2026-01-15T09:00:00+00:00 workout 1,3")
+                    return 'OK'
 
-        if command == '/remind':
-            # /remind <time> <text> [repeat_days]
-            if len(args) < 2:
-                send_message(chat_id, "Usage: /remind <time> <text> [repeat_days]\nExample: /remind 2026-01-15T09:00:00+00:00 workout 1,3")
-                return 'OK'
+                # Debug logging
+                logging.info(f"Remind command args: {args}")
 
-            # Debug logging
-            logging.info(f"Remind command args: {args}")
+                # Parse arguments - handle repeat at end
+                try:
+                    repeat = [int(x.strip()) for x in args[-1].split(',')]
+                    time_str = args[0]
+                    reminder_text = ' '.join(args[1:-1])
+                except (ValueError, IndexError):
+                    time_str = args[0]
+                    reminder_text = ' '.join(args[1:])
+                    repeat = None
 
-            # Parse arguments - handle repeat at end
-            try:
-                repeat = [int(x.strip()) for x in args[-1].split(',')]
-                time_str = args[0]
-                reminder_text = ' '.join(args[1:-1])
-            except (ValueError, IndexError):
-                time_str = args[0]
-                reminder_text = ' '.join(args[1:])
-                repeat = None
+                logging.info(f"Parsed: time='{time_str}', text='{reminder_text}', repeat={repeat}")
 
-            logging.info(f"Parsed: time='{time_str}', text='{reminder_text}', repeat={repeat}")
-
-            try:
-                next_run = datetime.datetime.fromisoformat(time_str)
-                if next_run.tzinfo is None:
-                    next_run = pytz.UTC.localize(next_run)
-                else:
+                try:
+                    next_run = datetime.datetime.fromisoformat(time_str)
+                    if next_run.tzinfo is None:
+                        # Get user timezone
+                        user_doc = db.collection('users').document(str(chat_id)).get()
+                        user_data = user_doc.to_dict() if user_doc.exists else {}
+                        user_tz_str = user_data.get('timezone', 'UTC')
+                        user_tz = pytz.timezone(user_tz_str)
+                        next_run = user_tz.localize(next_run)
                     next_run = next_run.astimezone(pytz.UTC)
 
-                reminder_id = create_reminder(chat_id, reminder_text, next_run, repeat)
-                send_message(chat_id, f"Reminder set for {next_run.strftime('%Y-%m-%d %H:%M')}")
-                logging.info(f"Reminder created: {reminder_id}")
-            except Exception as e:
-                logging.error(f"Time parsing failed for '{time_str}': {str(e)}")
-                send_message(chat_id, f"Invalid time format '{time_str}'. Expected ISO datetime string in UTC (e.g., 2026-01-15T09:00:00+00:00)")
+                    reminder_id = create_reminder(chat_id, reminder_text, next_run, repeat)
+                    send_message(chat_id, f"Reminder set for {next_run.strftime('%Y-%m-%d %H:%M')}")
+                    logging.info(f"Reminder created: {reminder_id}")
+                except Exception as e:
+                    logging.error(f"Time parsing failed for '{time_str}': {str(e)}")
+                    send_message(chat_id, f"Invalid time format '{time_str}'. Expected ISO datetime string (e.g., 2026-01-15T09:00:00 or 2026-01-15T09:00:00+02:00)")
 
-        elif command == '/list':
-            reminders = get_reminders(chat_id)
-            if not reminders:
-                send_message(chat_id, "No active reminders.")
-            else:
-                msg = "Active reminders:\n"
-                for i, r in enumerate(reminders, 1):
-                    dt = datetime.datetime.fromisoformat(r['next_run'])
-                    formatted_time = dt.strftime('%Y-%m-%d___%H:%M')
-                    msg += f"{i}. {r['text']} - {formatted_time}\n"
-                send_message(chat_id, msg)
+            elif command == '/list':
+                # Get user timezone
+                user_doc = db.collection('users').document(str(chat_id)).get()
+                user_data = user_doc.to_dict() if user_doc.exists else {}
+                user_tz_str = user_data.get('timezone', 'UTC')
+                user_tz = pytz.timezone(user_tz_str)
 
-        elif command == '/delete':
-            if not args:
-                send_message(chat_id, "Usage: /delete <reminder_number>")
-                return 'OK'
-            try:
-                idx = int(args[0]) - 1
                 reminders = get_reminders(chat_id)
-                if 0 <= idx < len(reminders):
-                    reminder_id = reminders[idx]['id']
-                    if delete_reminder(chat_id, reminder_id):
-                        send_message(chat_id, "Reminder deleted.")
-                    else:
-                        send_message(chat_id, "Failed to delete reminder.")
+                if not reminders:
+                    send_message(chat_id, "No active reminders.")
                 else:
-                    send_message(chat_id, "Invalid reminder number.")
-            except ValueError:
-                send_message(chat_id, "Invalid number.")
+                    msg = "Active reminders:\n"
+                    for i, r in enumerate(reminders, 1):
+                        dt_utc = datetime.datetime.fromisoformat(r['next_run'])
+                        dt_local = dt_utc.astimezone(user_tz)
+                        formatted_time = dt_local.strftime('%Y-%m-%d %H:%M')
+                        repeat_info = format_repeat_days(r.get('repeat', []))
+                        msg += f"{i}. {r['text']} - {formatted_time}{repeat_info}\n"
+                    send_message(chat_id, msg)
 
-        elif command == '/system_prompt':
-            if not args:
-                send_message(chat_id, "Usage: /system_prompt <your prompt text>\nExample: /system_prompt You are a fitness coach focused on strength training.")
+            elif command == '/delete':
+                if not args:
+                    send_message(chat_id, "Usage: /delete <reminder_number>")
+                    return 'OK'
+                try:
+                    idx = int(args[0]) - 1
+                    reminders = get_reminders(chat_id)
+                    if 0 <= idx < len(reminders):
+                        reminder_id = reminders[idx]['id']
+                        if delete_reminder(chat_id, reminder_id):
+                            send_message(chat_id, "Reminder deleted.")
+                        else:
+                            send_message(chat_id, "Failed to delete reminder.")
+                    else:
+                        send_message(chat_id, "Invalid reminder number.")
+                except ValueError:
+                    send_message(chat_id, "Invalid number.")
+
+            elif command == '/system_prompt':
+                if not args:
+                    send_message(chat_id, "Usage: /system_prompt <your prompt text>\nExample: /system_prompt You are a fitness coach focused on strength training.")
+                    return 'OK'
+                prompt_text = ' '.join(args)
+                set_user_system_prompt(chat_id, prompt_text)
+                send_message(chat_id, f"System prompt updated! I'll now respond according to: {prompt_text}")
+
+            elif command == '/set_api_exhausted_message':
+                if not args:
+                    send_message(chat_id, "Usage: /set_api_exhausted_message <your message>\nExample: /set_api_exhausted_message Sorry, the AI is taking a break. Try again!")
+                    return 'OK'
+                message_text = ' '.join(args)
+                set_user_api_exhausted_message(chat_id, message_text)
+                send_message(chat_id, f"API exhausted message updated! When the API is exhausted, I'll respond with: {message_text}")
+
+            elif command == '/set_timezone':
+                start_timezone_setup(chat_id)
                 return 'OK'
-            prompt_text = ' '.join(args)
-            set_user_system_prompt(chat_id, prompt_text)
-            send_message(chat_id, f"System prompt updated! I'll now respond according to: {prompt_text}")
 
-        elif command == '/set_api_exhausted_message':
-            if not args:
-                send_message(chat_id, "Usage: /set_api_exhausted_message <your message>\nExample: /set_api_exhausted_message Sorry, the AI is taking a break. Try again later!")
-                return 'OK'
-            message_text = ' '.join(args)
-            set_user_api_exhausted_message(chat_id, message_text)
-            send_message(chat_id, f"API exhausted message updated! When the API is exhausted, I'll respond with: {message_text}")
+            elif command is None:
+                # Not a command, treat as natural language message to AI
+                ai_response = get_chat_response(chat_id, text, mode="respond_user")
+                print(f"sending AI message: {ai_response}")
+                result = send_message(chat_id, ai_response)
+                logging.info(f"Send message results: {result}")
+                # Update last AI message timestamp
+                doc_ref = db.collection('users').document(str(chat_id))
+                doc_ref.set({'last_ai_message': firestore.SERVER_TIMESTAMP}, merge=True)
 
-        elif command is None:
-            # Not a command, treat as natural language message to AI
-            ai_response = get_chat_response(chat_id, text, mode="respond_user")
-            print(f"sending AI message: {ai_response}")
-            result = send_message(chat_id, ai_response)
-            logging.info(f"Send message results: {result}")
-            # Update last AI message timestamp
-            doc_ref = db.collection('users').document(str(chat_id))
-            doc_ref.set({'last_ai_message': firestore.SERVER_TIMESTAMP}, merge=True)
+            else:
+                send_message(chat_id, "Unknown command. Use /remind, /list, /delete, /system_prompt, /set_api_exhausted_message, or /set_timezone.")
 
-        else:
-            send_message(chat_id, "Unknown command. Use /remind, /list, /delete, /system_prompt, or /set_api_exhausted_message.")
+        elif 'callback_query' in update:
+            callback_query = update['callback_query']
+            chat_id = callback_query['message']['chat']['id']
+            callback_data = callback_query['data']
+            callback_query_id = callback_query['id']
+            answer_callback_query(callback_query_id)
+            process_setup_callback(chat_id, callback_data)
+            return 'OK'
 
         return 'OK'
 

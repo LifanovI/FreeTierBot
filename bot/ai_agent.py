@@ -7,6 +7,7 @@ from dateutil import parser as date_parser
 import json
 import logging
 from reminders import get_reminders, delete_reminder
+from utils import format_repeat_days
 
 db = firestore.Client()
 
@@ -65,17 +66,32 @@ def add_chat_message(chat_id, role, content):
     })
 
 def create_reminder_from_ai(chat_id, next_run_str, text, repeat=None, reminder_id=None):
-    """Create or update a reminder from AI function call with pre-formatted Firebase data."""
+    """Create or update a reminder from AI function call. next_run_str is in user's local timezone."""
     from reminders import create_reminder  # Import here to avoid circular import
+
+    # Get user timezone
+    user_doc = db.collection('users').document(str(chat_id)).get()
+    user_data = user_doc.to_dict() if user_doc.exists else {}
+    user_tz_str = user_data.get('timezone', 'UTC')
+    user_tz = pytz.timezone(user_tz_str)
+
     action = "Updating" if reminder_id else "Creating"
     print(f"DEBUG: {action} reminder - next_run: '{next_run_str}', text: '{text}', repeat: {repeat}, id: {reminder_id}")
     try:
-        # next_run_str is already in ISO format, pass it directly
-        result_id = create_reminder(chat_id, text, next_run_str, repeat, reminder_id)
+        # Parse next_run_str as local time, convert to UTC
+        next_run_local = datetime.datetime.fromisoformat(next_run_str)
+        if next_run_local.tzinfo is None:
+            next_run_local = user_tz.localize(next_run_local)
+        next_run_utc = next_run_local.astimezone(pytz.UTC)
+
+        result_id = create_reminder(chat_id, text, next_run_utc, repeat, reminder_id)
         if result_id:
             action_done = "updated" if reminder_id else "created"
+            repeat_info = format_repeat_days(repeat)
+            if repeat_info:
+                repeat_info = f". This is a repeated reminder for{repeat_info[1:]}"  # Remove leading space, add period
             print(f"DEBUG: Reminder {action_done} successfully: {result_id}")
-            return f"Reminder {action_done}: {text} for {next_run_str} repeat: {repeat}"
+            return f"Reminder {action_done}: {text} for {next_run_str} (local time){repeat_info}"
         else:
             return "Failed to update reminder: invalid ID or permission denied"
     except Exception as e:
@@ -97,8 +113,17 @@ def get_chat_response(chat_id, message, mode="respond_user"):
         return "Sorry, my AI brain isn't configured properly right now."
 
     # --- 1. Setup Initial Context ---
-    today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
-    current_time = datetime.datetime.utcnow().strftime('%H:%M UTC')
+    # Get user timezone
+    user_doc = db.collection('users').document(str(chat_id)).get()
+    user_data = user_doc.to_dict() if user_doc.exists else {}
+    user_tz_str = user_data.get('timezone', 'UTC')
+    user_tz = pytz.timezone(user_tz_str)
+
+    # Get current time in user's timezone
+    now_utc = datetime.datetime.utcnow().replace(tzinfo=pytz.UTC)
+    now_local = now_utc.astimezone(user_tz)
+    today = now_local.strftime('%Y-%m-%d')
+    current_time = now_local.strftime('%H:%M')
     system_prompt_text = f"You are a telegram reminder chat bot designed to serve user in a role they define. Today is {today} an current time is {current_time}. User defined role: "
     system_prompt_text += get_user_system_prompt(chat_id)
     
@@ -139,7 +164,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "next_run": {"type": "string", "description": "ISO datetime string in UTC (e.g., 2026-01-15T09:00:00)"},
+                            "next_run": {"type": "string", "description": "ISO datetime string in user's local timezone (e.g., 2026-01-15T09:00:00)"},
                             "text": {"type": "string", "description": "Reminder message text"},
                             "repeat": {"type": "array", "items": {"type": "integer"}, "description": "Make reminder repeatable for the following days: 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun"},
                             "id": {"type": "string", "description": "Optional reminder ID to update existing reminder"},
@@ -241,9 +266,11 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                         else:
                             rem_list = []
                             for r in reminders:
-                                dt = datetime.datetime.fromisoformat(r['next_run'])
-                                formatted_time = dt.strftime('%Y-%m-%d %H:%M')
-                                rem_list.append({"id": r['id'], "text": r['text'], "time": formatted_time})
+                                dt_utc = datetime.datetime.fromisoformat(r['next_run'])
+                                dt_local = dt_utc.astimezone(user_tz)
+                                formatted_time = dt_local.strftime('%Y-%m-%d %H:%M')
+                                repeat_info = format_repeat_days(r.get('repeat', []))
+                                rem_list.append({"id": r['id'], "text": r['text'], "time": f"{formatted_time} {repeat_info}"})
                             api_response = {"reminders": rem_list, "instruction": "Do not disclose reminder IDs to the user."}
 
                     elif func_name == 'delete_reminders':
