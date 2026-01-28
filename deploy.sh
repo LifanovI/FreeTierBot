@@ -3,7 +3,15 @@
 # Automated deployment script for Telegram Coach Bot
 # This script handles the complete setup from GCP project to live bot
 
-set -e  # Exit on any error
+# Error handler function to keep terminal open
+handle_error() {
+    echo ""
+    echo "🛑 Script stopped due to error: $1"
+    echo ""
+    echo "Press Enter to exit..."
+    read -r
+    exit 1
+}
 
 echo "🤖 Telegram Coach Bot - Automated Deployment"
 echo "=============================================="
@@ -12,18 +20,18 @@ echo "=============================================="
 echo "📋 Checking prerequisites..."
 if ! command -v terraform &> /dev/null; then
     echo "❌ Terraform is not installed. Please install it first."
-    exit 1
+    handle_error "Terraform not installed"
 fi
 
 if ! command -v gcloud &> /dev/null; then
     echo "❌ gcloud CLI is not installed. Please install it first."
-    exit 1
+    handle_error "gcloud CLI not installed"
 fi
 
 # Check if authenticated
 if ! gcloud auth list --filter=status:ACTIVE --format="value(account)" | head -n 1 > /dev/null; then
     echo "❌ Not authenticated with gcloud. Please run 'gcloud auth login' first."
-    exit 1
+    handle_error "Not authenticated with gcloud"
 fi
 
 echo "✅ Prerequisites check passed"
@@ -36,19 +44,19 @@ echo "----------------"
 read -p "Enter your GCP Project ID: " PROJECT_ID
 if [ -z "$PROJECT_ID" ]; then
     echo "❌ Project ID is required"
-    exit 1
+    handle_error "Project ID is required"
 fi
 
 read -p "Enter your Telegram Bot Token (from @BotFather): " BOT_TOKEN
 if [ -z "$BOT_TOKEN" ]; then
     echo "❌ Bot token is required"
-    exit 1
+    handle_error "Bot token is required"
 fi
 
 read -p "Enter your Gemini API Key (from Google AI Studio): " GEMINI_KEY
 if [ -z "$GEMINI_KEY" ]; then
     echo "❌ Gemini API key is required"
-    exit 1
+    handle_error "Gemini API key is required"
 fi
 
 read -p "Enter whitelist user IDs (comma-separated, leave empty for public access, numbers only(!) like 1016669999, NOT @UseName): " WHITELIST_IDS
@@ -66,7 +74,7 @@ EOF
 echo "✅ Configuration created"
 
 # Navigate to terraform directory
-cd terraform
+cd terraform || { echo "❌ Failed to navigate to terraform directory"; handle_error "Failed to navigate to terraform directory"; }
 
 # Select or create workspace for the project
 echo ""
@@ -74,29 +82,29 @@ echo "🔄 Selecting Terraform workspace..."
 if terraform workspace select $PROJECT_ID 2>/dev/null; then
     echo "✅ Switched to existing workspace '$PROJECT_ID'"
 else
-    terraform workspace new $PROJECT_ID
+    terraform workspace new $PROJECT_ID || { echo "❌ Failed to create new workspace '$PROJECT_ID'"; handle_error "Failed to create new workspace"; }
     echo "✅ Created new workspace '$PROJECT_ID'"
 fi
 
 # Initialize Terraform
 echo ""
 echo "🚀 Initializing Terraform..."
-terraform init -upgrade
+terraform init -upgrade || { echo "❌ Terraform initialization failed"; handle_error "Terraform initialization failed"; }
 
 # Apply infrastructure
 echo ""
 echo "🏗️  Deploying infrastructure..."
-terraform apply -auto-approve
+terraform apply -auto-approve || { echo "❌ Terraform apply failed"; handle_error "Terraform apply failed"; }
 
 # Get function URL and webhook secret
 echo ""
 echo "🔗 Getting deployment details..."
-FUNCTION_URL=$(terraform output -raw telegram_webhook_function_url)
-WEBHOOK_SECRET=$(terraform output -raw webhook_secret)
+FUNCTION_URL=$(terraform output -raw telegram_webhook_function_url 2>/dev/null)
+WEBHOOK_SECRET=$(terraform output -raw webhook_secret 2>/dev/null)
 
 if [ -z "$FUNCTION_URL" ] || [ -z "$WEBHOOK_SECRET" ]; then
     echo "❌ Failed to get function URL or webhook secret"
-    exit 1
+    handle_error "Failed to get function URL or webhook secret"
 fi
 
 echo "✅ Function URL: $FUNCTION_URL"
@@ -138,14 +146,14 @@ echo "📡 Setting Telegram webhook..."
 WEBHOOK_URL="${FUNCTION_URL}?token=${WEBHOOK_SECRET}"
 WEBHOOK_RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setWebhook" \
     -H "Content-Type: application/json" \
-    -d "{\"url\": \"${WEBHOOK_URL}\"}")
+    -d "{\"url\": \"${WEBHOOK_URL}\"}" || { echo "❌ Failed to execute webhook curl command"; handle_error "Failed to execute webhook curl command"; })
 
 # Check if webhook was set successfully
 if echo "$WEBHOOK_RESPONSE" | grep -q '"ok":true'; then
     echo "✅ Webhook set successfully!"
 else
     echo "❌ Failed to set webhook. Response: $WEBHOOK_RESPONSE"
-    exit 1
+    handle_error "Failed to set webhook"
 fi
 
 # Success message
