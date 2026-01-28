@@ -82,17 +82,21 @@ def telegram_webhook(request):
 
                 try:
                     next_run = datetime.datetime.fromisoformat(time_str)
-                    if next_run.tzinfo is None:
-                        # Get user timezone
-                        user_doc = db.collection('users').document(str(chat_id)).get()
-                        user_data = user_doc.to_dict() if user_doc.exists else {}
-                        user_tz_str = user_data.get('timezone', 'UTC')
-                        user_tz = pytz.timezone(user_tz_str)
-                        next_run = user_tz.localize(next_run)
-                    next_run = next_run.astimezone(pytz.UTC)
-
+                    # Don't convert to UTC here - pass the local time directly to create_reminder
+                    # create_reminder will handle timezone conversion internally
                     reminder_id = create_reminder(chat_id, reminder_text, next_run, repeat)
-                    send_message(chat_id, f"Reminder set for {next_run.strftime('%Y-%m-%d %H:%M')}")
+                    # Get user timezone to display the time correctly
+                    user_doc = db.collection('users').document(str(chat_id)).get()
+                    user_data = user_doc.to_dict() if user_doc.exists else {}
+                    user_tz_str = user_data.get('timezone', 'UTC')
+                    user_tz = pytz.timezone(user_tz_str)
+                    
+                    if next_run.tzinfo is None:
+                        next_run_local = user_tz.localize(next_run)
+                    else:
+                        next_run_local = next_run.astimezone(user_tz)
+                    
+                    send_message(chat_id, f"Reminder set for {next_run_local.strftime('%Y-%m-%d %H:%M')}")
                     logging.info(f"Reminder created: {reminder_id}")
                 except Exception as e:
                     logging.error(f"Time parsing failed for '{time_str}': {str(e)}")
@@ -111,11 +115,10 @@ def telegram_webhook(request):
                 else:
                     msg = "Active reminders:\n"
                     for i, r in enumerate(reminders, 1):
-                        dt_utc = datetime.datetime.fromisoformat(r['next_run'])
-                        dt_local = dt_utc.astimezone(user_tz)
-                        formatted_time = dt_local.strftime('%Y-%m-%d %H:%M')
+                        # Use the display_time from get_reminders function
+                        display_time = r.get('display_time', '')
                         repeat_info = format_repeat_days(r.get('repeat', []))
-                        msg += f"{i}. {r['text']} - {formatted_time}{repeat_info}\n"
+                        msg += f"{i}. {r['text']} - {display_time}{repeat_info}\n"
                     send_message(chat_id, msg)
 
             elif command == '/delete':

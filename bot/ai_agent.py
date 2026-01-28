@@ -78,13 +78,14 @@ def create_reminder_from_ai(chat_id, next_run_str, text, repeat=None, reminder_i
     action = "Updating" if reminder_id else "Creating"
     print(f"DEBUG: {action} reminder - next_run: '{next_run_str}', text: '{text}', repeat: {repeat}, id: {reminder_id}")
     try:
-        # Parse next_run_str as local time, convert to UTC
+        # Parse next_run_str as local time
         next_run_local = datetime.datetime.fromisoformat(next_run_str)
         if next_run_local.tzinfo is None:
             next_run_local = user_tz.localize(next_run_local)
-        next_run_utc = next_run_local.astimezone(pytz.UTC)
 
-        result_id = create_reminder(chat_id, text, next_run_utc, repeat, reminder_id)
+        # Pass the local datetime directly to create_reminder
+        # create_reminder will handle the timezone conversion internally
+        result_id = create_reminder(chat_id, text, next_run_local, repeat, reminder_id)
         if result_id:
             action_done = "updated" if reminder_id else "created"
             repeat_info = format_repeat_days(repeat)
