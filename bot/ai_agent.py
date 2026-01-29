@@ -106,6 +106,8 @@ def get_chat_response(chat_id, message, mode="respond_user"):
     mode defines the behavior of the function:
     "respond_user" - direct response to user
     "agent_reachout" - continue conversation based on internal agent prompt (e.g. to continue chat after delay)
+    "generate_api_message" - generate a custom API exhausted message based on system prompt
+    "generate_welcome_message" - generate a personalized welcome message in user's language
     """
     print(f"DEBUG: calling Gemini with {message} in mode: {mode}")
     api_key = os.environ.get('GEMINI_API_KEY')
@@ -151,6 +153,13 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                     'role': 'user',
                     'parts': [{'text': f"(Internal System Trigger): Continue the conversation naturally and convey the following: {message}"}]
                 })
+    elif mode == "generate_api_message":
+        # For API message generation, use the prompt directly without conversation history
+        # This ensures the message is generated based purely on the system prompt
+        contents = [{
+            'role': 'user',
+            'parts': [{'text': message}]
+        }]
 
     # --- 2. Define Tools (CONDITIONALLY) ---
     # We ONLY define tools if we are responding to a user. 
@@ -305,6 +314,47 @@ def get_chat_response(chat_id, message, mode="respond_user"):
             return f"Error: {str(e)}"
 
     return "Sorry, the conversation got stuck in a loop."
+
+def generate_api_exhausted_message(chat_id, system_prompt):
+    """Generate an appropriate API exhausted message using LLM based on the system prompt."""
+    if not system_prompt:
+        return "Sorry, the AI is taking a break. Try again later."
+    
+    # Create a prompt for the LLM to generate an appropriate unavailable message
+    prompt = f"""Based on this AI role description: "{system_prompt}"
+    
+    Generate a friendly, natural message that this AI would say when it's temporarily unavailable or taking a break. 
+    The message should:
+    - Be consistent with the AI's role and personality
+    - Sound natural and conversational
+    - Indicate that the AI is temporarily unavailable
+    - Suggest trying again later
+    
+    Keep the message under 5 sentences and make it sound helpful and professional."""
+    
+    # Use the existing get_chat_response function with a special mode
+    return get_chat_response(chat_id, prompt, mode="generate_api_message")
+
+def generate_welcome_message(chat_id, system_prompt):
+    """Generate a personalized welcome message in the user's preferred language based on system prompt."""
+    if not system_prompt:
+        return "Welcome! I'm ready to help you. You can now set up your first reminder using /remind command."
+    
+    # Create a prompt for the LLM to generate a welcome message in the appropriate language
+    prompt = f"""Based on this AI role description: "{system_prompt}"
+    
+    Generate a warm, friendly welcome message that:
+    - Greets the user in the appropriate language (detect from the role description)
+    - Confirms that setup is complete and the bot is ready to operate
+    - Introduces the bot's main capabilities
+    - Invites the user to set up their first reminder
+    - Provides a simple example relevant to the bot's role
+    - Sounds natural
+    
+    The message should be 2-3 sentences and match the tone of the AI's role."""
+    
+    # Use the existing get_chat_response function with a special mode
+    return get_chat_response(chat_id, prompt, mode="generate_welcome_message")
 
 def generate_agent_reachout_message(reminder_data, chat_id, reachout_type="agent_reachout"):
     """Generate a personalized message for agent reachout using AI."""

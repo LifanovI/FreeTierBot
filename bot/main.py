@@ -8,6 +8,7 @@ from telegram import send_message, parse_command, answer_callback_query
 from reminders import create_reminder, get_reminders, delete_reminder, get_due_reminders, mark_reminder_sent
 from ai_agent import get_chat_response, set_user_system_prompt, set_user_api_exhausted_message, generate_agent_reachout_message
 from setup_handlers import process_setup_callback, start_timezone_setup
+from start_handler import handle_start_command, process_start_callback, process_start_message
 from google.cloud import firestore
 import datetime
 import pytz
@@ -159,7 +160,16 @@ def telegram_webhook(request):
                 start_timezone_setup(chat_id)
                 return 'OK'
 
+            elif command == '/start':
+                handle_start_command(chat_id)
+                return 'OK'
+
             elif command is None:
+                # Check if user is in start setup mode and handle accordingly
+                from start_handler import process_start_message
+                if process_start_message(chat_id, text):
+                    return 'OK'
+                
                 # Not a command, treat as natural language message to AI
                 ai_response = get_chat_response(chat_id, text, mode="respond_user")
                 print(f"sending AI message: {ai_response}")
@@ -178,7 +188,12 @@ def telegram_webhook(request):
             callback_data = callback_query['data']
             callback_query_id = callback_query['id']
             answer_callback_query(callback_query_id)
-            process_setup_callback(chat_id, callback_data)
+            
+            # Handle different types of callbacks
+            if callback_data.startswith('start_'):
+                process_start_callback(chat_id, callback_data)
+            else:
+                process_setup_callback(chat_id, callback_data)
             return 'OK'
 
         return 'OK'

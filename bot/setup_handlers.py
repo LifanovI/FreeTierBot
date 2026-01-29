@@ -100,8 +100,17 @@ def save_timezone(chat_id, timezone):
     """Save selected timezone for user."""
     doc_ref = db.collection('users').document(str(chat_id))
     doc_ref.set({'timezone': timezone}, merge=True)
-    clear_user_setup_state(chat_id)
-    send_message(chat_id, f'✅ Timezone set to {timezone}')
+    
+    # Check if this was part of start setup flow
+    state = get_user_setup_state(chat_id)
+    if state.get('flow') == 'start' and state.get('step') == 'awaiting_timezone':
+        # Complete start setup flow
+        from start_handler import handle_timezone_setup_complete
+        handle_timezone_setup_complete(chat_id)
+    else:
+        # Regular timezone setup
+        clear_user_setup_state(chat_id)
+        send_message(chat_id, f'✅ Timezone set to {timezone}')
 
 def start_timezone_setup(chat_id):
     """Start timezone setup flow."""
