@@ -2,24 +2,24 @@
 
 **Build, deploy, and share Telegram bots for $0.**
 
-**Do you have a Google Account, e.g. for Gmail? If yes - you have everything you need to deploy a free AI bot! Isn't that cool?**
+**Do you have a Google Account, e.g., for Gmail? If yes — you already have everything you need to deploy a free AI bot! Isn't that cool?**
 
-FreeTierBot is an open-source **Telegram bot platform + Terraform blueprint** for running production-ready bots entirely on **cloud free tiers** (Google Cloud out of the box). It ships with a real example bot (AI reminders & coaching powered by Gemini) and is designed to be **reused, and published** by the community.
+FreeTierBot is an open-source **Telegram bot platform + Terraform blueprint** for running production-ready bots entirely on **cloud free tiers** (Google Cloud out of the box). It ships with a working **example bot** (AI reminders & coaching powered by Gemini) and is designed to be **reused and published** by the community.
 
-> Think of FreeTierBot as **"create-react-app for Telegram bots — but serverless, Terraform-first, and free-tier friendly."**
+> Think of FreeTierBot as **"create-react-app for Telegram bots — serverless, Terraform-first, and free-tier friendly."**
 
 ---
 
 ## ⭐ Why FreeTierBot?
 
-Most Telegram bots incure:
+Most Telegram bots require:
 
 * Hosting costs
-* Require you to build some infrastructure
+* Building and maintaining infrastructure
 
 FreeTierBot fixes that:
 
-* 🆓 **Runs on cloud free tier** (just watch it)
+* 🆓 **Runs on cloud free tier** (just monitor usage)
 * 🧱 **Reusable Terraform infrastructure**
 * ⚡ **One-command deploy**
 * 🤖 **AI-ready** (Gemini included)
@@ -28,27 +28,31 @@ FreeTierBot fixes that:
 If you can write a Python function, you can ship a Telegram bot.
 
 ---
+
 ## 🧩 Built with FreeTierBot
 
-FreeTierBot is designed to be reused and remixed.
-Create your awesome "bot" which can be published with ```/deploy.sh```
-And create a pull request to publish it here:
+FreeTierBot is designed to be **reused and remixed**.
+Want to become a contributor and see your bot here?
+- Put your bot in `/community_bots` folder
+- Open a **pull request** to add your bot to the repo
 
-- _(Your bot could be here)_ — open a PR to add it
+### What is Reused
 
-### What Is Reused
 * Serverless infrastructure
 * Deployment automation
+* Standard bot interface
+
+---
 
 ## 🧠 What’s Included
 
-* ✅ A fully working **AI reminder & coaching bot**
+* ✅ Working **AI reminder & coaching bot** in `/bot/`
 * ✅ Production-grade **serverless cloud architecture**
 * ✅ **Terraform** for 100% reproducible deployments
 * ✅ Secure secrets via **Secret Manager**
 * ✅ Scheduling, retries, and state handling
 
-Use it as-is **or** replace the bot logic and publish your own.
+Use it as-is **or** replace the bot logic and publish your own in `/community_bots`.
 
 ---
 
@@ -77,11 +81,11 @@ Cloud Scheduler ─▶ Pub/Sub ─▶ Retry Queue
 
 ---
 
-### Prerequisites
+## 🛠️ Prerequisites
 
-* Cloud project with billing enabled (remains free on free tier)
+* Google Cloud project with billing enabled (stays free on free tier)
 * [Terraform installed](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
-* gcloud CLI authenticated: use
+* gcloud CLI authenticated:
 ```bash
 gcloud auth login
 gcloud auth application-default login
@@ -111,11 +115,15 @@ When it finishes — **your bot is live**.
 
 
 ## 🤖 Using the Example Bot
-
+Bot can be used with just natural language, the only command you really need is
 * `/start` — onboarding
+
+However, you can override bot parameters with
 * `/system_prompt` — customize AI personality
-* `/set_timezone` — accurate scheduling
-* `/remind tomorrow 9am workout`
+* `/set_timezone` — set timezone
+
+You can also manually set and check reminders: 
+* `/remind 2026-01-26T09:00:00 Brush my teeth 1,2,3,5` will set a reminder to brush teeth at 9 a.m. 26 of Jan at your local timezone and will repeat Monday, Tuesday, Wednesday, and Friday
 * `/list`, `/delete`, recurring reminders
 
 This bot is a **reference implementation** — swap it with your own idea.
@@ -133,6 +141,8 @@ This bot is a **reference implementation** — swap it with your own idea.
 | Gemini API      | Generous free tier     |
 
 > For personal bots and small communities, **cost stays at $0**.
+
+Make sure to check current values for [Google Free Tier](https://cloud.google.com/free)
 
 ---
 
