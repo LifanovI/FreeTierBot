@@ -8,6 +8,7 @@ import json
 import logging
 from reminders import get_reminders, delete_reminder
 from utils import format_repeat_days
+from logging_config import logger
 
 db = firestore.Client()
 
@@ -76,7 +77,7 @@ def create_reminder_from_ai(chat_id, next_run_str, text, repeat=None, reminder_i
     user_tz = pytz.timezone(user_tz_str)
 
     action = "Updating" if reminder_id else "Creating"
-    print(f"DEBUG: {action} reminder - next_run: '{next_run_str}', text: '{text}', repeat: {repeat}, id: {reminder_id}")
+    logger.debug(f"{action} reminder - next_run: '{next_run_str}', text: '{text}', repeat: {repeat}, id: {reminder_id}")
     try:
         # Parse next_run_str as local time
         next_run_local = datetime.datetime.fromisoformat(next_run_str)
@@ -91,14 +92,14 @@ def create_reminder_from_ai(chat_id, next_run_str, text, repeat=None, reminder_i
             repeat_info = format_repeat_days(repeat)
             if repeat_info:
                 repeat_info = f". This is a repeated reminder for{repeat_info[1:]}"  # Remove leading space, add period
-            print(f"DEBUG: Reminder {action_done} successfully: {result_id}")
+            logger.debug(f"Reminder {action_done} successfully: {result_id}")
             return f"Reminder {action_done}: {text} for {next_run_str} (local time){repeat_info}"
         else:
             return "Failed to update reminder: invalid ID or permission denied"
     except Exception as e:
-        print(f"DEBUG: Reminder creation/update failed: {str(e)}")
+        logger.error(f"Reminder creation/update failed: {str(e)}")
         import traceback
-        print(f"DEBUG: Traceback: {traceback.format_exc()}")
+        logger.debug(f"Traceback: {traceback.format_exc()}")
         return f"Failed to set reminder: {str(e)}"
 
 def get_chat_response(chat_id, message, mode="respond_user"):
@@ -109,11 +110,11 @@ def get_chat_response(chat_id, message, mode="respond_user"):
     "generate_api_message" - generate a custom API exhausted message based on system prompt
     "generate_welcome_message" - generate a personalized welcome message in user's language
     """
-    print(f"DEBUG: calling Gemini with {message} in mode: {mode}")
+    logger.debug(f"Calling Gemini with message in mode: {mode}")
     api_key = os.environ.get('GEMINI_API_KEY')
     if not api_key:
-        logging.error("GEMINI_API_KEY environment variable not set")
-        return "Sorry, my AI brain isn't configured properly right now."
+        logger.error("GEMINI_API_KEY environment variable not set")
+        return "Sorry, my AI brain isn't configured properly right now. Ask admins to set Gemini API key"
 
     # --- 1. Setup Initial Context ---
     # Get user timezone
@@ -224,7 +225,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
             payload['tools'] = tools
 
         try:
-            print(f"DEBUG: Turn {current_turn} - Sending request to Gemini (Mode: {mode})...")
+            logger.debug(f"Turn {current_turn} - Sending request to Gemini (Mode: {mode})...")
             response = requests.post(url, headers=headers, json=payload, timeout=30)
             response.raise_for_status()
             data = response.json()
@@ -255,7 +256,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                 for func_call in function_calls:
                     func_name = func_call['name']
                     func_args = func_call.get('args', {})
-                    print(f"DEBUG: Executing function: {func_name}")
+                    logger.debug(f"Executing function: {func_name}")
 
                     api_response = {}
 
@@ -304,7 +305,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                 continue
 
         except Exception as e:
-            print(f"Error in Gemini Loop: {e}")
+            logger.error(f"Error in Gemini Loop: {e}")
             if isinstance(e, requests.HTTPError) and e.response.status_code == 429:
                 custom_message = get_user_api_exhausted_message(chat_id)
                 if custom_message:

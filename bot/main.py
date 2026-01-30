@@ -13,12 +13,9 @@ from google.cloud import firestore
 import datetime
 import pytz
 from utils import format_repeat_days
+from logging_config import logger
 
 db = firestore.Client()
-
-logging.basicConfig(level=logging.INFO)
-
-
 
 @functions_framework.http
 def telegram_webhook(request):
@@ -33,7 +30,7 @@ def telegram_webhook(request):
 
         # Request body is the Telegram update JSON
         update = request.get_json()
-        print(f"update is: {update}")
+        logger.debug(f"Received update: {update}")
         if not update:
             return 'Invalid request', 400
 
@@ -54,7 +51,7 @@ def telegram_webhook(request):
             whitelist = os.environ.get('WHITELIST_USER_IDS', '').strip()
 
             if whitelist:
-                print(f"List of whitelisted users is: {whitelist} and user_id is {user_id}")
+                logger.debug(f"Checking whitelist for user_id: {user_id}")
                 if str(user_id) not in [uid.strip() for uid in whitelist.split(',')]:
                     return 'OK'
 
@@ -67,7 +64,7 @@ def telegram_webhook(request):
                     return 'OK'
 
                 # Debug logging
-                logging.info(f"Remind command args: {args}")
+                logger.info(f"Remind command args: {args}")
 
                 # Parse arguments - handle repeat at end
                 try:
@@ -79,7 +76,7 @@ def telegram_webhook(request):
                     reminder_text = ' '.join(args[1:])
                     repeat = None
 
-                logging.info(f"Parsed: time='{time_str}', text='{reminder_text}', repeat={repeat}")
+                logger.info(f"Parsed: time='{time_str}', text='{reminder_text}', repeat={repeat}")
 
                 try:
                     next_run = datetime.datetime.fromisoformat(time_str)
@@ -98,12 +95,13 @@ def telegram_webhook(request):
                         next_run_local = next_run.astimezone(user_tz)
                     
                     send_message(chat_id, f"Reminder set for {next_run_local.strftime('%Y-%m-%d %H:%M')}")
-                    logging.info(f"Reminder created: {reminder_id}")
+                    logger.info(f"Reminder created: {reminder_id}")
                 except Exception as e:
-                    logging.error(f"Time parsing failed for '{time_str}': {str(e)}")
+                    logger.error(f"Time parsing failed for '{time_str}': {str(e)}")
                     send_message(chat_id, f"Invalid time format '{time_str}'. Expected ISO datetime string (e.g., 2026-01-15T09:00:00 or 2026-01-15T09:00:00+02:00)")
 
             elif command == '/list':
+                logger.info("Testing centralized JSON logging - /list command called")
                 # Get user timezone
                 user_doc = db.collection('users').document(str(chat_id)).get()
                 user_data = user_doc.to_dict() if user_doc.exists else {}
@@ -172,9 +170,9 @@ def telegram_webhook(request):
                 
                 # Not a command, treat as natural language message to AI
                 ai_response = get_chat_response(chat_id, text, mode="respond_user")
-                print(f"sending AI message: {ai_response}")
+                logger.debug(f"Sending AI response to user {chat_id}")
                 result = send_message(chat_id, ai_response)
-                logging.info(f"Send message results: {result}")
+                logger.info(f"Message sent to user {chat_id}, result: {result}")
                 # Update last AI message timestamp
                 doc_ref = db.collection('users').document(str(chat_id))
                 doc_ref.set({'last_ai_message': firestore.SERVER_TIMESTAMP}, merge=True)
@@ -199,7 +197,7 @@ def telegram_webhook(request):
         return 'OK'
 
     except Exception as e:
-        logging.error(f"Error in telegram_webhook: {e}")
+        logger.error(f"Error in telegram_webhook: {e}")
         return 'Error', 500
 
 @functions_framework.cloud_event
@@ -238,10 +236,10 @@ def scheduler_tick(cloud_event: CloudEvent):
                     user_doc.reference.set({'last_ai_message': firestore.SERVER_TIMESTAMP}, merge=True)
                     reachout_count += 1
 
-            logging.info(f"System reachout: checked users, sent {reachout_count} messages")
+            logger.info(f"System reachout: checked users, sent {reachout_count} messages")
 
         return f"Processed {processed_count} reminders, {reachout_count if 'reachout_count' in locals() else 0} system reachouts"
 
     except Exception as e:
-        logging.error(f"Error in scheduler_tick: {e}")
+        logger.error(f"Error in scheduler_tick: {e}")
         return 'Error', 500

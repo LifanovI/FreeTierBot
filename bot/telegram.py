@@ -1,6 +1,7 @@
 import requests
 import json
 import os
+from logging_config import logger
 
 def get_bot_token():
     """Retrieve Telegram bot token from environment."""
@@ -28,8 +29,8 @@ def send_message(chat_id, text, bot_token=None, reply_markup=None):
         if reply_markup:
             payload["reply_markup"] = reply_markup
         response = requests.post(url, json=payload)
-        print(f"Response status: {response.status_code}")
-        print(f"Response body: {response.json()}")
+        logger.debug(f"Telegram API response status: {response.status_code}")
+        logger.debug(f"Telegram API response body: {response.json()}")
         results.append(response.json())
 
     return results
