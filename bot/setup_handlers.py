@@ -1,5 +1,5 @@
 import pytz
-from telegram import send_message, answer_callback_query
+from telegram import send_message
 from google.cloud import firestore
 
 db = firestore.Client()

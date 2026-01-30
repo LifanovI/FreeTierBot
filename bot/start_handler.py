@@ -1,5 +1,4 @@
-import pytz
-from telegram import send_message, answer_callback_query
+from telegram import send_message
 from google.cloud import firestore
 from ai_agent import set_user_system_prompt, set_user_api_exhausted_message, generate_api_exhausted_message, generate_welcome_message
 from setup_handlers import start_timezone_setup

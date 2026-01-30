@@ -3,9 +3,6 @@ import requests
 from google.cloud import firestore
 import datetime
 import pytz
-from dateutil import parser as date_parser
-import json
-import logging
 from reminders import get_reminders, delete_reminder
 from utils import format_repeat_days
 from logging_config import logger

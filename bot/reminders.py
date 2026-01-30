@@ -2,7 +2,6 @@ from google.cloud import firestore
 import datetime
 import pytz
 from dateutil import parser as date_parser
-from dateutil.relativedelta import relativedelta
 
 db = firestore.Client()
 

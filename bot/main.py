@@ -1,14 +1,12 @@
 import functions_framework
 from cloudevents.http import CloudEvent
-import json
-import logging
 import os
 import random
 from telegram import send_message, parse_command, answer_callback_query
 from reminders import create_reminder, get_reminders, delete_reminder, get_due_reminders, mark_reminder_sent
 from ai_agent import get_chat_response, set_user_system_prompt, set_user_api_exhausted_message, generate_agent_reachout_message
 from setup_handlers import process_setup_callback, start_timezone_setup
-from start_handler import handle_start_command, process_start_callback, process_start_message
+from start_handler import handle_start_command, process_start_callback
 from google.cloud import firestore
 import datetime
 import pytz
@@ -101,7 +99,6 @@ def telegram_webhook(request):
                     send_message(chat_id, f"Invalid time format '{time_str}'. Expected ISO datetime string (e.g., 2026-01-15T09:00:00 or 2026-01-15T09:00:00+02:00)")
 
             elif command == '/list':
-                logger.info("Testing centralized JSON logging - /list command called")
                 # Get user timezone
                 user_doc = db.collection('users').document(str(chat_id)).get()
                 user_data = user_doc.to_dict() if user_doc.exists else {}
