@@ -1,114 +1,177 @@
-# Personal AI Telegram Coach/Reminder Bot
+# 🚀 FreeTierBot — Telegram Bots on Free Cloud Infrastructure
 
-An intelligent personal Telegram bot powered by Gemini AI that handles reminders and provides natural language coaching using Google Cloud Platform serverless services (free tier).
+**Build, deploy, and share Telegram bots for $0.**
 
-## Architecture
+**Do you have a Google Account, e.g. for Gmail? If yes - you have everything you need to deploy a free AI bot! Isn't that cool?**
 
-- **Cloud Functions (2nd gen, Python)**: `telegram_webhook` (HTTP triggered) and `scheduler_tick` (Pub/Sub triggered)
-- **Firestore**: Stores reminders and user state
-- **Cloud Scheduler**: Triggers reminder checks every minute
-- **Pub/Sub**: Used for scheduler events
-- **Secret Manager**: Stores Telegram bot token
+FreeTierBot is an open-source **Telegram bot platform + Terraform blueprint** for running production-ready bots entirely on **cloud free tiers** (Google Cloud out of the box). It ships with a real example bot (AI reminders & coaching powered by Gemini) and is designed to be **reused, and published** by the community.
 
-## Reminders
-Reminders can be:
-- External - standard user set reminders which are verbose and result in messages in chat
-- Internal - reminders triggering AI agent to message
+> Think of FreeTierBot as **"create-react-app for Telegram bots — but serverless, Terraform-first, and free-tier friendly."**
 
-## User Commands
+---
 
-- `/initiate`: Configure the system from start
-- `/remind <time> <message> [interval]`: Set a one-time or recurring external reminder
-- `/list`: List all active external reminders
-- `/delete <number>`: Delete a reminder by number
-- `/system_prompt <text>`: Configure the AI's behavior and personality
+## ⭐ Why FreeTierBot?
 
+Most Telegram bots incure:
 
-## Time Formats
+* Hosting costs
+* Require you to build some infrastructure
 
-Supports natural language and ISO formats:
-- "2026-01-10 09:00"
-- "tomorrow 3pm"
-- "in 2 hours"
+FreeTierBot fixes that:
 
-## Intervals
+* 🆓 **Runs on cloud free tier** (just watch it)
+* 🧱 **Reusable Terraform infrastructure**
+* ⚡ **One-command deploy**
+* 🤖 **AI-ready** (Gemini included)
+* 🌍 **Built for open source** — fork it, brand it, ship it
 
-- `daily`
-- `weekly`
-- `monthly`
+If you can write a Python function, you can ship a Telegram bot.
 
-## Quick Start (Automated)
+---
+## 🧩 Built with FreeTierBot
 
-For the easiest deployment, use the automated script:
+FreeTierBot is designed to be reused and remixed.
+Create your awesome "bot" which can be published with ```/deploy.sh```
+And create a pull request to publish it here:
+
+- _(Your bot could be here)_ — open a PR to add it
+
+### What Is Reused
+* Serverless infrastructure
+* Deployment automation
+
+## 🧠 What’s Included
+
+* ✅ A fully working **AI reminder & coaching bot**
+* ✅ Production-grade **serverless cloud architecture**
+* ✅ **Terraform** for 100% reproducible deployments
+* ✅ Secure secrets via **Secret Manager**
+* ✅ Scheduling, retries, and state handling
+
+Use it as-is **or** replace the bot logic and publish your own.
+
+---
+
+## 🧩 Architecture Overview
+
+```
+Telegram ──▶ Cloud Functions (Python 3.11)
+                │
+                ▼
+            Firestore
+                │
+Cloud Scheduler ─▶ Pub/Sub ─▶ Retry Queue
+                │
+                ▼
+             Gemini API
+```
+
+### Core Components
+
+* **Cloud Functions (2nd gen)** — webhook + scheduler workers
+* **Firestore** — reminders, user state, retries
+* **Cloud Scheduler** — minute-level cron
+* **Pub/Sub** — async events & retries
+* **Secret Manager** — bot tokens & API keys
+* **Gemini API** — AI responses & coaching
+
+---
+
+### Prerequisites
+
+* Cloud project with billing enabled (remains free on free tier)
+* [Terraform installed](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
+* gcloud CLI authenticated: use
+```bash
+gcloud auth login
+gcloud auth application-default login
+```
+* [Telegram Bot Token](https://core.telegram.org/bots/tutorial#obtain-your-bot-token)
+* [Gemini API Key](https://aistudio.google.com/api-keys) (use Free Tier for Free)
+
+## 🚀 One command deployment 
+
+> ⏱️ ~5 minutes from zero to live bot
 
 ```bash
-# Make sure you have Terraform and gcloud CLI installed and authenticated
 ./deploy.sh
 ```
 
 The script will:
-- ✅ Check prerequisites
-- ✅ Prompt for your GCP project ID and bot token
-- ✅ Deploy all infrastructure automatically
-- ✅ Set up the Telegram webhook
-- ✅ Confirm successful deployment
 
-## Manual Deployment
+* Prompt for cloud project & bot token
+* Enable required APIs
+* Deploy infrastructure via Terraform
+* Set Telegram webhook automatically
 
-If you prefer manual control:
+When it finishes — **your bot is live**.
 
-### Prerequisites
+---
 
-- Google Cloud Project with billing enabled (stays at $0 with free tier)
-- Terraform installed
-- gcloud CLI authenticated
-- Telegram Bot Token (get from @BotFather)
-- Gemini API Key (get from [Google AI Studio](https://aistudio.google.com/app/apikey))
 
-### Steps
 
-1. **Get your Telegram Bot Token:**
-   - Message @BotFather on Telegram
-   - Create a new bot and copy the token
+## 🤖 Using the Example Bot
 
-2. **Create terraform.tfvars file:**
-   ```hcl
-   project_id          = "your-gcp-project-id"
-   telegram_bot_token  = "your-bot-token-here"
-   gemini_api_key      = "your-gemini-api-key-here"
-   ```
+* `/start` — onboarding
+* `/system_prompt` — customize AI personality
+* `/set_timezone` — accurate scheduling
+* `/remind tomorrow 9am workout`
+* `/list`, `/delete`, recurring reminders
 
-3. **Navigate to terraform directory and initialize:**
-   ```bash
-   cd terraform
-   terraform init
-   ```
+This bot is a **reference implementation** — swap it with your own idea.
 
-4. **Apply Terraform infrastructure:**
-   ```bash
-   terraform apply
-   ```
+---
 
-5. **Set Telegram webhook:**
-   ```bash
-   cd ../scripts
-   ./set_webhook.sh $(terraform output -raw telegram_webhook_function_url) $(terraform output -raw webhook_secret) your-bot-token-here
-   ```
+## 💸 Free Tier Reality Check
 
-6. **Bot is live!**
+| Service         | Free Tier              |
+| --------------- | ---------------------- |
+| Cloud Functions | ~43k invocations/month |
+| Firestore       | 50k reads/day          |
+| Cloud Scheduler | 3M jobs/month          |
+| Pub/Sub         | 10GB/month             |
+| Gemini API      | Generous free tier     |
 
-## Usage
+> For personal bots and small communities, **cost stays at $0**.
 
-Start a chat with your bot and use the commands above.
+---
 
-## Free Tier Limits
+## 🧑‍💻 Contributing & Ecosystem Vision
 
-- ~43k function invocations/month
-- Firestore reads/writes minimal
-- Single scheduler job
+FreeTierBot is more than a repo — it’s meant to become an **ecosystem**.
 
-## Cleanup
+We welcome:
 
-```bash
-cd terraform
-terraform destroy
+* 🧩 New bot templates
+* 🏗️ Terraform improvements
+* 📚 Documentation & examples
+* 🤖 AI tooling integrations
+
+If you publish a bot built on FreeTierBot, **open a PR and showcase it**.
+
+---
+
+## 🐛 Troubleshooting
+
+* Check Cloud Function logs
+* Verify webhook configuration
+* Confirm secrets in Secret Manager
+* Monitor Pub/Sub subscriptions
+
+Most issues surface clearly in cloud logs.
+
+---
+
+## 📄 License
+
+MIT — build cool things, no permission required.
+
+---
+
+## 🌍 Mission
+
+> Make Telegram bots **cheap**, **open**, and **boring to deploy**.
+
+If this saves you time, ⭐ star the repo and share your bot with the community.
+
+**Built with ❤️ for open-source developers.**
