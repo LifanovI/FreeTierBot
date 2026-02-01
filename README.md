@@ -85,9 +85,12 @@ Cloud Scheduler ─▶ Pub/Sub ─▶ Retry Queue
 
 * Google Cloud project with billing enabled (stays free on free tier)
 * [Terraform installed](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
-* gcloud CLI authenticated:
+* gcloud CLI authenticated for both CLI commands:
 ```bash
 gcloud auth login
+```
+* And terraform:
+```bash
 gcloud auth application-default login
 ```
 * [Telegram Bot Token](https://core.telegram.org/bots/tutorial#obtain-your-bot-token)
@@ -97,9 +100,39 @@ gcloud auth application-default login
 
 > ⏱️ ~5 minutes from zero to live bot
 
-```bash
-./deploy.sh
-```
+All initial deployment is handled by `deploy.sh`. **Important: Run it as a script, not with `source`!. Equally important, do not forget to authenticate with google for both auth login and auth application-default login**
+
+### For macOS and Linux
+
+1. **Make the script executable** (if not already):
+   ```bash
+   chmod +x deploy.sh
+   ```
+
+2. **Run the deployment script**:
+   ```bash
+   ./deploy.sh
+   ```
+
+### For Windows
+
+1. **Using Git Bash** (recommended):
+   ```bash
+   chmod +x deploy.sh
+   ./deploy.sh
+   ```
+
+2. **Using Windows Subsystem for Linux (WSL)**:
+   ```bash
+   chmod +x deploy.sh
+   ./deploy.sh
+   ```
+
+3. **Using Command Prompt or PowerShell**:
+   - Install [Git Bash](https://git-scm.com/downloads) or [WSL](https://learn.microsoft.com/en-us/windows/wsl/install)
+   - Or run: `bash deploy.sh` (if you have bash installed)
+
+### What the script does
 
 The script will:
 
