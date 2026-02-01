@@ -27,7 +27,7 @@ def create_reminder(chat_id, text, next_run, repeat=None, reminder_id=None):
     if reminder_id:
         doc_ref = db.collection('reminders').document(reminder_id)
         doc = doc_ref.get()
-        if not doc.exists() or doc.to_dict().get('chat_id') != chat_id:
+        if not doc.exists or doc.to_dict().get('chat_id') != chat_id:
             return None
         update_data = {
             'text': text,
@@ -87,8 +87,16 @@ def get_reminders(chat_id):
     
     return reminders
 
-def delete_reminder(chat_id, reminder_id):
-    """Delete a reminder."""
+def delete_reminder(chat_id, index):
+    """Delete a reminder by its index position in the user's reminder list."""
+    reminders = get_reminders(chat_id)
+    if 0 <= index < len(reminders):
+        reminder_id = reminders[index]['id']
+        return delete_reminder_by_id(chat_id, reminder_id)
+    return False
+
+def delete_reminder_by_id(chat_id, reminder_id):
+    """Delete a reminder by document ID."""
     doc_ref = db.collection('reminders').document(reminder_id)
     doc = doc_ref.get()
     if doc.exists and doc.to_dict()['chat_id'] == chat_id:

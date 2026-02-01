@@ -123,13 +123,8 @@ def telegram_webhook(request):
                     return 'OK'
                 try:
                     idx = int(args[0]) - 1
-                    reminders = get_reminders(chat_id)
-                    if 0 <= idx < len(reminders):
-                        reminder_id = reminders[idx]['id']
-                        if delete_reminder(chat_id, reminder_id):
-                            send_message(chat_id, "Reminder deleted.")
-                        else:
-                            send_message(chat_id, "Failed to delete reminder.")
+                    if delete_reminder(chat_id, idx):
+                        send_message(chat_id, "Reminder deleted.")
                     else:
                         send_message(chat_id, "Invalid reminder number.")
                 except ValueError:

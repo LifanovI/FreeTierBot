@@ -3,7 +3,7 @@ import requests
 from google.cloud import firestore
 import datetime
 import pytz
-from reminders import get_reminders, delete_reminder
+from reminders import get_reminders, delete_reminder, create_reminder
 from utils import format_repeat_days
 from logging_config import logger
 
@@ -65,7 +65,6 @@ def add_chat_message(chat_id, role, content):
 
 def create_reminder_from_ai(chat_id, next_run_str, text, repeat=None, reminder_id=None):
     """Create or update a reminder from AI function call. next_run_str is in user's local timezone."""
-    from reminders import create_reminder  # Import here to avoid circular import
 
     # Get user timezone
     user_doc = db.collection('users').document(str(chat_id)).get()
@@ -168,14 +167,14 @@ def get_chat_response(chat_id, message, mode="respond_user"):
             'functionDeclarations': [
                 {
                     "name": "set_reminder",
-                    "description": "Set a reminder for the user. Generate the exact Firebase-compatible format.",
+                    "description": "Set a new reminder or update an existing one using index numbers (1-based).",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "next_run": {"type": "string", "description": "ISO datetime string in user's local timezone (e.g., 2026-01-15T09:00:00)"},
                             "text": {"type": "string", "description": "Reminder message text"},
                             "repeat": {"type": "array", "items": {"type": "integer"}, "description": "Make reminder repeatable for the following days: 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun"},
-                            "id": {"type": "string", "description": "Optional reminder ID to update existing reminder"},
+                            "index": {"type": "integer", "description": "Optional reminder index to update (1-based, as shown in /list command). If not provided, creates a new reminder."},
                         },
                         "required": ["next_run", "text"]
                     }
@@ -187,13 +186,13 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                 },
                 {
                     "name": "delete_reminders",
-                    "description": "Delete reminders by ID",
+                    "description": "Delete reminders by their index numbers (1-based)",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "ids": {"type": "array", "items": {"type": "string"}, "description": "IDs to delete"}
+                            "indices": {"type": "array", "items": {"type": "integer"}, "description": "Index numbers of reminders to delete (1-based, as shown in /list command)"}
                         },
-                        "required": ["ids"]
+                        "required": ["indices"]
                     }
                 }
             ]
@@ -258,12 +257,34 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                     api_response = {}
 
                     if func_name == 'set_reminder':
+                        # Get the actual document ID from the index if provided
+                        reminder_index = func_args.get('index')
+                        reminder_id = None
+                        
+                        if reminder_index is not None:
+                            # Convert 1-based index to 0-based and get the document ID
+                            reminders = get_reminders(chat_id)
+                            if 1 <= reminder_index <= len(reminders):
+                                reminder_id = reminders[reminder_index - 1]['id']
+                            else:
+                                api_response = {"result": f"Invalid reminder index {reminder_index}. Please use a number between 1 and {len(reminders)}."}
+                                contents.append({
+                                    "role": "function",
+                                    "parts": [{
+                                        "functionResponse": {
+                                            "name": func_name,
+                                            "response": api_response
+                                        }
+                                    }]
+                                })
+                                continue
+                        
                         res_str = create_reminder_from_ai(
                             chat_id,
                             func_args.get('next_run', ''),
                             func_args.get('text', ''),
                             func_args.get('repeat'),
-                            func_args.get('id'),
+                            reminder_id,
                         )
                         api_response = {"result": res_str}
 
@@ -273,19 +294,21 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                             api_response = {"result": "No active reminders found."}
                         else:
                             rem_list = []
-                            for r in reminders:
+                            for i, r in enumerate(reminders, 1):
                                 dt_utc = datetime.datetime.fromisoformat(r['next_run'])
                                 dt_local = dt_utc.astimezone(user_tz)
                                 formatted_time = dt_local.strftime('%Y-%m-%d %H:%M')
                                 repeat_info = format_repeat_days(r.get('repeat', []))
-                                rem_list.append({"id": r['id'], "text": r['text'], "time": f"{formatted_time} {repeat_info}"})
-                            api_response = {"reminders": rem_list, "instruction": "Do not disclose reminder IDs to the user."}
+                                rem_list.append({"index": i, "text": r['text'], "time": f"{formatted_time} {repeat_info}"})
+                            api_response = {"reminders": rem_list, "instruction": "Reference reminders by their index numbers (1-based) when responding to the user."}
 
                     elif func_name == 'delete_reminders':
-                        ids = func_args.get('ids', [])
+                        indices = func_args.get('indices', [])
                         deleted_count = 0
-                        for rid in ids:
-                            if delete_reminder(chat_id, rid):
+                        for idx in indices:
+                            # Convert 1-based index to 0-based before calling delete_reminder
+                            zero_based_idx = idx - 1
+                            if delete_reminder(chat_id, zero_based_idx):
                                 deleted_count += 1
                         api_response = {"result": f"Deleted {deleted_count} reminders."}
 
