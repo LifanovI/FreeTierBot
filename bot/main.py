@@ -98,7 +98,7 @@ def telegram_webhook(request):
                     logger.error(f"Time parsing failed for '{time_str}': {str(e)}")
                     send_message(chat_id, f"Invalid time format '{time_str}'. Expected ISO datetime string (e.g., 2026-01-15T09:00:00 or 2026-01-15T09:00:00+02:00)")
 
-            elif command == '/list':
+            elif command == '/list_reminders':
                 # Get user timezone
                 user_doc = db.collection('users').document(str(chat_id)).get()
                 user_data = user_doc.to_dict() if user_doc.exists else {}
@@ -116,6 +116,25 @@ def telegram_webhook(request):
                         repeat_info = format_repeat_days(r.get('repeat', []))
                         msg += f"{i}. {r['text']} - {display_time}{repeat_info}\n"
                     send_message(chat_id, msg)
+
+            elif command == '/list_commands':
+                commands_msg = """Available commands:
+/remind <time> <text> [repeat_days] - Set a reminder
+/list_reminders - List all active reminders
+/delete <reminder_number> - Delete a reminder
+/system_prompt <text> - Customize AI personality
+/set_api_exhausted_message <text> - Set custom API exhausted message
+/set_timezone - Set your timezone
+/start - Start bot setup
+
+Examples:
+/remind 2026-01-15T09:00:00 workout 1,3
+/list_reminders
+/delete 1
+/system_prompt You are a fitness coach
+/set_api_exhausted_message Try again later
+/set_timezone"""
+                send_message(chat_id, commands_msg)
 
             elif command == '/delete':
                 if not args:
@@ -170,7 +189,7 @@ def telegram_webhook(request):
                 doc_ref.set({'last_ai_message': firestore.SERVER_TIMESTAMP}, merge=True)
 
             else:
-                send_message(chat_id, "Unknown command. Use /remind, /list, /delete, /system_prompt, /set_api_exhausted_message, or /set_timezone.")
+                send_message(chat_id, "Unknown command. Use /list_commands to check available commands")
 
         elif 'callback_query' in update:
             callback_query = update['callback_query']

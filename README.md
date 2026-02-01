@@ -124,7 +124,7 @@ However, you can override bot parameters with
 
 You can also manually set and check reminders: 
 * `/remind 2026-01-26T09:00:00 Brush my teeth 1,2,3,5` will set a reminder to brush teeth at 9 a.m. 26 of Jan at your local timezone and will repeat Monday, Tuesday, Wednesday, and Friday
-* `/list`, `/delete`, recurring reminders
+* `/list_reminders`, `/delete [index]` - list, delete recurring reminders
 
 This bot is a **reference implementation** — swap it with your own idea.
 

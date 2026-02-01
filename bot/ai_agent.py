@@ -174,7 +174,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                             "next_run": {"type": "string", "description": "ISO datetime string in user's local timezone (e.g., 2026-01-15T09:00:00)"},
                             "text": {"type": "string", "description": "Reminder message text"},
                             "repeat": {"type": "array", "items": {"type": "integer"}, "description": "Make reminder repeatable for the following days: 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun"},
-                            "index": {"type": "integer", "description": "Optional reminder index to update (1-based, as shown in /list command). If not provided, creates a new reminder."},
+                            "index": {"type": "integer", "description": "Optional reminder index to update (1-based, as shown in check_reminders command). If not provided, creates a new reminder."},
                         },
                         "required": ["next_run", "text"]
                     }
@@ -190,7 +190,7 @@ def get_chat_response(chat_id, message, mode="respond_user"):
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "indices": {"type": "array", "items": {"type": "integer"}, "description": "Index numbers of reminders to delete (1-based, as shown in /list command)"}
+                            "indices": {"type": "array", "items": {"type": "integer"}, "description": "Index numbers of reminders to delete (1-based, as shown in check_reminders command)"}
                         },
                         "required": ["indices"]
                     }

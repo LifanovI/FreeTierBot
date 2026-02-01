@@ -43,7 +43,7 @@ def handle_start_command(chat_id):
     }
     
     message = ("Hey, I am your reminder bot up and running. Would you like to set me up automatically (recommended), or manually?\n\n"
-               "to check all commands type /list")
+               "to check all commands type /list_commands")
     send_message(chat_id, message, reply_markup=keyboard)
     
     # Set initial setup state
@@ -85,17 +85,8 @@ def process_start_callback(chat_id, callback_data):
                   "This is a reminder bot, optimized to be your personal coach. To set it up, please add system prompt, defining the role with command /system_prompt.\n\n" 
                   "If you are using free API key, it might be rate limited. In case, API key is exhausted - bot will return you some message. you can set this message with /set_api_exhausted_message\n\n"
                   "Finally, bot needs to understand your timezone. Please, set it with /set_timezone command\n\n"
-                  "all the available commands are listed below\n"
-                  "Available commands:\n\n"
-                  "• /remind <time> <text> [repeat_days] - Set a reminder\n"
-                  "  Example: /remind 2026-01-15T09:00:00+00:00 workout 1,3\n\n"
-                  "• /list - List all active reminders\n\n"
-                  "• /delete <number> - Delete a reminder\n\n"
-                  "• /system_prompt <text> - Set your AI role\n"
-                  "  Example: /system_prompt You are a fitness coach\n\n"
-                  "• /set_api_exhausted_message <text> - Set fallback message\n"
-                  "  Example: /set_api_exhausted_message AI is taking a break\n\n"
-                  "• /set_timezone - Set your timezone\n\n"
+                  "All the available commands are listed below\n"
+                  "Check all available commands with /list_commands\n"
                   "Use these commands to configure your bot according to your needs.")
         send_message(chat_id, message)
 
