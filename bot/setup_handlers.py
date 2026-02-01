@@ -15,6 +15,10 @@ def get_timezone_regions():
 
 def get_timezones_for_region(region):
     """Get timezones for a specific region."""
+    # Handle special case for UTC
+    if region == 'UTC':
+        return ['UTC']
+    
     return sorted([tz for tz in pytz.common_timezones if tz.startswith(region + '/')])
 
 def create_inline_keyboard(options, callback_prefix):
