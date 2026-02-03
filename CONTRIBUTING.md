@@ -30,7 +30,10 @@ Depending on what you’re contributing:
 - Include a `README.md` explaining:
   - What the bot does
   - Any special configuration
-- Follow the same interface as the example bot (`/bot`)
+- Follow the same interface as the example bot (standard handlers like `/start`)
+- (Optional) Include `optional_deploy.sh` for custom setup:
+  - Use this for Firestore indexes or any post-deployment tasks
+  - The script receives `PROJECT_ID` as the first argument (`$1`)
 
 > Please do **not** modify Terraform when adding a bot template.
 

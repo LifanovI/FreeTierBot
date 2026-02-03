@@ -4,24 +4,17 @@
 
 **Do you have a Google Account, e.g., for Gmail? If yes — you already have everything you need to deploy a free AI bot! Isn't that cool?**
 
-FreeTierBot is an open-source **Telegram bot platform + Terraform blueprint** for running production-ready bots entirely on **cloud free tiers** (Google Cloud out of the box). It ships with a working **example bot** (AI reminders & coaching powered by Gemini) and is designed to be **reused and published** by the community.
-
-> Think of FreeTierBot as **"create-react-app for Telegram bots — serverless, Terraform-first, and free-tier friendly."**
+FreeTierBot is an open-source **Telegram bot platform + Terraform blueprint** for running production-ready bots entirely on **cloud free tiers** (Google Cloud out of the box). It is designed to be **reused and published** by the community.
 
 ---
 
 ## ⭐ Why FreeTierBot?
 
-Most Telegram bots require:
+Most Telegram bots require hosting costs and infrastructure maintenance. FreeTierBot fixes that:
 
-* Hosting costs
-* Building and maintaining infrastructure
-
-FreeTierBot fixes that:
-
-* 🆓 **Runs on cloud free tier** (just monitor usage)
+* 🆓 **Runs on cloud free tier** (Google Cloud)
 * 🧱 **Reusable Terraform infrastructure**
-* ⚡ **One-command deploy**
+* ⚡ **One-command deploy** (`./deploy.sh`)
 * 🤖 **AI-ready** (Gemini included)
 * 🌍 **Built for open source** — fork it, brand it, ship it
 
@@ -46,14 +39,11 @@ Want to become a contributor and see your bot here?
 
 ## 🧠 What’s Included
 
-* ✅ Working **AI reminder & coaching bot** in `/community_bots/reminder_bot/`
-* ✅ Production-grade **serverless cloud architecture**
+* ✅ **Production-grade serverless cloud architecture**
 * ✅ **Terraform** for 100% reproducible deployments
-* ✅ Secure secrets via **Secret Manager**
-* ✅ Scheduling, retries, and state handling
+* ✅ **Automated deployment script** for easy setup
 * ✅ **Reusable bot setup** via optional deployment scripts
-
-Use it as-is **or** replace the bot logic and publish your own in `/community_bots`.
+* ✅ **Example AI Bot** in `/community_bots/reminder_bot/` ([Documentation](./community_bots/reminder_bot/README.md))
 
 ---
 
@@ -143,24 +133,6 @@ The script will:
 * Set Telegram webhook automatically
 
 When it finishes — **your bot is live**.
-
----
-
-
-
-## 🤖 Using the Example Bot
-Bot can be used with just natural language, the only command you really need is
-* `/start` — onboarding
-
-However, you can override bot parameters with
-* `/system_prompt` — customize AI personality
-* `/set_timezone` — set timezone
-
-You can also manually set and check reminders: 
-* `/remind 2026-01-26T09:00:00 Brush my teeth 1,2,3,5` will set a reminder to brush teeth at 9 a.m. 26 of Jan at your local timezone and will repeat Monday, Tuesday, Wednesday, and Friday
-* `/list_reminders`, `/delete [index]` - list, delete recurring reminders
-
-This bot is a **reference implementation** — swap it with your own idea.
 
 ---
 
