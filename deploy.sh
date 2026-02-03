@@ -117,11 +117,14 @@ read -p "Enter whitelist user IDs (comma-separated, leave empty for public acces
 # Create terraform.tfvars
 echo ""
 echo "📝 Creating terraform configuration..."
+# Adjust path to be relative to terraform directory (../community_bots/...)
+BOT_SOURCE_PATH="../${SELECTED_BOT_DIR}"
 cat > terraform/terraform.tfvars << EOF
 project_id         = "$PROJECT_ID"
 telegram_bot_token = "$BOT_TOKEN"
 gemini_api_key     = "$GEMINI_KEY"
 whitelist_user_ids = "$WHITELIST_IDS"
+bot_source_path    = "$BOT_SOURCE_PATH"
 EOF
 
 echo "✅ Configuration created"
@@ -147,9 +150,7 @@ terraform init -upgrade || { echo "❌ Terraform initialization failed"; handle_
 # Apply infrastructure
 echo ""
 echo "🏗️  Deploying infrastructure..."
-# Adjust path to be relative to terraform directory (../community_bots/...)
-BOT_SOURCE_PATH="../${SELECTED_BOT_DIR}"
-terraform apply -auto-approve -var="bot_source_path=${BOT_SOURCE_PATH}" || { echo "❌ Terraform apply failed"; handle_error "Terraform apply failed"; }
+terraform apply -auto-approve || { echo "❌ Terraform apply failed"; handle_error "Terraform apply failed"; }
 
 # Get function URL and webhook secret
 echo ""
