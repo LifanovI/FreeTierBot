@@ -46,11 +46,12 @@ Want to become a contributor and see your bot here?
 
 ## 🧠 What’s Included
 
-* ✅ Working **AI reminder & coaching bot** in `/bot/`
+* ✅ Working **AI reminder & coaching bot** in `/community_bots/reminder_bot/`
 * ✅ Production-grade **serverless cloud architecture**
 * ✅ **Terraform** for 100% reproducible deployments
 * ✅ Secure secrets via **Secret Manager**
 * ✅ Scheduling, retries, and state handling
+* ✅ **Reusable bot setup** via optional deployment scripts
 
 Use it as-is **or** replace the bot logic and publish your own in `/community_bots`.
 
@@ -158,6 +159,41 @@ We welcome:
 * 🤖 AI tooling integrations
 
 If you publish a bot built on FreeTierBot, **open a PR and showcase it**.
+
+## 📋 Creating New Bots
+
+To create a new bot based on FreeTierBot:
+
+1. **Copy the example bot structure:**
+   ```bash
+   cp -r community_bots/reminder_bot community_bots/your-bot-name
+   ```
+
+2. **Create your bot's optional deployment script:**
+    Your bot might need specialized setup like Firestore indexes. If you need a custom setup - just create an `optional_deploy.sh` script and the deploy script will handle the rest.
+   Create `community_bots/your-bot-name/optional_deploy.sh` with your requirements:
+   ```bash
+   #!/bin/bash
+   PROJECT_ID=$1
+   echo "🚀 Running custom setup..."
+   gcloud firestore indexes composite create \
+     --collection-group="your_collection" \
+     --field-config field-path=field1,order=ascending \
+     --project="$PROJECT_ID" \
+     --quiet
+   ```
+
+3. **Customize your bot logic:**
+   - Modify the bot code in `community_bots/your-bot-name/bot/`
+   - Update the Terraform configuration if needed
+   - Test your bot locally
+
+4. **Deploy your bot:**
+   ```bash
+   ./deploy.sh
+   ```
+
+The deployment script will automatically detect and execute your bot's `optional_deploy.sh` if it exists.
 
 ---
 

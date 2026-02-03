@@ -45,3 +45,8 @@ variable "whitelist_user_ids" {
   type        = string
   default     = ""
 }
+
+variable "bot_source_path" {
+  description = "Path to the bot source code directory"
+  type        = string
+}

@@ -3,6 +3,9 @@
 # Automated deployment script for Telegram Coach Bot
 # This script handles the complete setup from GCP project to live bot
 
+# Save the root directory absolute path
+SCRIPT_ROOT=$(pwd)
+
 # Error handler function to keep terminal open
 handle_error() {
     echo ""
@@ -13,7 +16,57 @@ handle_error() {
     exit 1
 }
 
-echo "🤖 Telegram Coach Bot - Automated Deployment"
+echo "🤖 FreeTierBot - Automated Deployment"
+echo "====================================="
+
+# Bot Selection
+echo ""
+echo "📋 Select Bot to Deploy"
+echo "----------------------"
+
+# Find all bot directories in community_bots
+BOT_DIRS=()
+if [ -d "community_bots" ]; then
+    for dir in community_bots/*/; do
+        if [ -d "$dir" ]; then
+            # Extract bot name from directory path
+            bot_name=$(basename "$dir")
+            BOT_DIRS+=("$bot_name")
+        fi
+    done
+fi
+
+# If no bots found, check if we're in a bot directory directly
+if [ ${#BOT_DIRS[@]} -eq 0 ]; then
+        echo "❌ No bots found. Please ensure community_bots/ directory exists with bot subdirectories."
+        handle_error "No bots found"
+else
+    # Display available bots
+    echo "Available bots:"
+    for i in "${!BOT_DIRS[@]}"; do
+        echo "$((i+1))) ${BOT_DIRS[$i]}"
+    done
+    echo ""
+    
+    # Get user selection
+    while true; do
+        read -p "Please select a bot to deploy (1-${#BOT_DIRS[@]}) (enter number only): " selection
+        
+        # Validate input
+        if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -le "${#BOT_DIRS[@]}" ]; then
+            selected_index=$((selection - 1))
+            SELECTED_BOT_DIR="community_bots/${BOT_DIRS[$selected_index]}/"
+        BOT_OPTIONAL_DEPLOY_SCRIPT="${SCRIPT_ROOT}/${SELECTED_BOT_DIR}optional_deploy.sh"
+        echo "✅ Selected bot: ${BOT_DIRS[$selected_index]}"
+            break
+        else
+            echo "❌ Invalid selection. Please enter a number between 1 and ${#BOT_DIRS[@]}."
+        fi
+    done
+fi
+
+echo ""
+echo "🤖 Selected Bot: $SELECTED_BOT_DIR"
 echo "=============================================="
 
 # Check prerequisites
@@ -94,7 +147,9 @@ terraform init -upgrade || { echo "❌ Terraform initialization failed"; handle_
 # Apply infrastructure
 echo ""
 echo "🏗️  Deploying infrastructure..."
-terraform apply -auto-approve || { echo "❌ Terraform apply failed"; handle_error "Terraform apply failed"; }
+# Adjust path to be relative to terraform directory (../community_bots/...)
+BOT_SOURCE_PATH="../${SELECTED_BOT_DIR}"
+terraform apply -auto-approve -var="bot_source_path=${BOT_SOURCE_PATH}" || { echo "❌ Terraform apply failed"; handle_error "Terraform apply failed"; }
 
 # Get function URL and webhook secret
 echo ""
@@ -110,35 +165,22 @@ fi
 echo "✅ Function URL: $FUNCTION_URL"
 echo "✅ Webhook Secret: [HIDDEN]"
 
-# Create Firestore composite index for chat history
+# Run bot-specific optional deployment steps
 echo ""
-echo "📊 Creating Firestore index for chat history..."
-echo "   Note: Index creation may take 5-10 minutes to complete"
-if gcloud firestore indexes composite create \
-  --collection-group=chat_history \
-  --field-config field-path=chat_id,order=ascending \
-  --field-config field-path=timestamp,order=descending \
-  --project=$PROJECT_ID \
-  --quiet; then
-    echo "✅ Firestore index creation initiated"
-else
-    echo "⚠️  Index creation failed or already exists (this is usually OK)"
-fi
+echo "📊 Running bot-specific optional deployment..."
+run_optional_deploy() {
+    local project_id=$1
+    
+    if [ -f "$BOT_OPTIONAL_DEPLOY_SCRIPT" ]; then
+        echo "   Found optional deployment script: $BOT_OPTIONAL_DEPLOY_SCRIPT"
+        bash "$BOT_OPTIONAL_DEPLOY_SCRIPT" "$project_id"
+    else
+        echo "   ⚠️ No optional_deploy.sh found at $BOT_OPTIONAL_DEPLOY_SCRIPT, skipping"
+    fi
+}
 
-# Create Firestore composite index for reminders
-echo ""
-echo "📊 Creating Firestore index for reminders..."
-echo "   Note: Index creation may take 5-10 minutes to complete"
-if gcloud firestore indexes composite create \
-  --collection-group=reminders \
-  --field-config field-path=active,order=ascending \
-  --field-config field-path=next_run,order=ascending \
-  --project=$PROJECT_ID \
-  --quiet; then
-    echo "✅ Reminders Firestore index creation initiated"
-else
-    echo "⚠️  Reminders index creation failed or already exists (this is usually OK)"
-fi
+# Call the function to run optional deployment
+run_optional_deploy "$PROJECT_ID"
 
 # Set Telegram webhook with authentication
 echo ""
@@ -160,7 +202,7 @@ fi
 echo ""
 echo "🎉 Deployment Complete!"
 echo "======================"
-echo "Your Telegram Coach Bot is now live!"
+echo "Your Telegram Bot is now live!"
 echo "It will guide you through setup process once it receives /start command"
 echo ""
 echo "To destroy the infrastructure later: cd terraform && terraform workspace select $PROJECT_ID && terraform destroy"

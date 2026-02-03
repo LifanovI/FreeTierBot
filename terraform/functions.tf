@@ -5,7 +5,7 @@ resource "google_storage_bucket" "function_bucket" {
 
 data "archive_file" "bot_source" {
   type        = "zip"
-  source_dir  = "../bot"
+  source_dir  = var.bot_source_path
   output_path = "/tmp/bot.zip"
 }
 
