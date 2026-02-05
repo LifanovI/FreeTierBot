@@ -1,6 +1,12 @@
+resource "random_id" "bucket_suffix" {
+  byte_length = 4
+}
+
 resource "google_storage_bucket" "function_bucket" {
-  name     = "${var.project_id}-functions"
-  location = var.region
+  name          = "${var.project_id}-functions-${random_id.bucket_suffix.hex}"
+  location      = var.region
+  force_destroy = true
+  uniform_bucket_level_access = true
 }
 
 data "archive_file" "bot_source" {
