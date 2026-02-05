@@ -50,3 +50,9 @@ variable "bot_source_path" {
   description = "Path to the bot source code directory"
   type        = string
 }
+
+variable "deployer_email" {
+  description = "Email of the user deploying the infrastructure (for bucket permissions)"
+  type        = string
+  default     = null
+}

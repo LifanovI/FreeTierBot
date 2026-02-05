@@ -82,12 +82,13 @@ if ! command -v gcloud &> /dev/null; then
 fi
 
 # Check if authenticated
-if ! gcloud auth list --filter=status:ACTIVE --format="value(account)" | head -n 1 > /dev/null; then
+CURRENT_USER_EMAIL=$(gcloud auth list --filter=status:ACTIVE --format="value(account)" | head -n 1)
+if [ -z "$CURRENT_USER_EMAIL" ]; then
     echo "❌ Not authenticated with gcloud. Please run 'gcloud auth login' first."
     handle_error "Not authenticated with gcloud"
 fi
 
-echo "✅ Prerequisites check passed"
+echo "✅ Prerequisites check passed (Logged in as: $CURRENT_USER_EMAIL)"
 
 # Get user inputs
 echo ""
@@ -117,7 +118,7 @@ read -p "Enter whitelist user IDs (comma-separated, leave empty for public acces
 # Create terraform.tfvars
 echo ""
 echo "📝 Creating terraform configuration..."
-# Adjust path to be relative to terraform directory (../community_bots/...)
+# Adjust path to be relative to terraform directory (../community_bots/...)My Project 25968
 BOT_SOURCE_PATH="../${SELECTED_BOT_DIR}"
 cat > terraform/terraform.tfvars << EOF
 project_id         = "$PROJECT_ID"
@@ -125,6 +126,7 @@ telegram_bot_token = "$BOT_TOKEN"
 gemini_api_key     = "$GEMINI_KEY"
 whitelist_user_ids = "$WHITELIST_IDS"
 bot_source_path    = "$BOT_SOURCE_PATH"
+deployer_email     = "$CURRENT_USER_EMAIL"
 EOF
 
 echo "✅ Configuration created"
@@ -144,7 +146,7 @@ fi
 
 # Initialize Terraform
 echo ""
-echo "🚀 Initializing Terraform..."
+echo "� Initializing Terraform..."
 terraform init -upgrade || { echo "❌ Terraform initialization failed"; handle_error "Terraform initialization failed"; }
 
 # Apply infrastructure
