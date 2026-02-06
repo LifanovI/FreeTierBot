@@ -101,6 +101,38 @@ if [ -z "$PROJECT_ID" ]; then
     handle_error "Project ID is required"
 fi
 
+read -p "Enter region for resources or press Enter to use us-central1 (default): " REGION
+REGION=${REGION:-us-central1}
+
+echo "📍 Using region: $REGION"
+
+# Ensure correct GCP project is active
+gcloud config set project "$PROJECT_ID" --quiet || \
+  handle_error "Failed to set active GCP project"
+
+# Ensure Artifact Registry exists for Cloud Functions Gen2
+echo ""
+echo "📦 Ensuring Artifact Registry repository exists..."
+
+# Enable Artifact Registry API
+gcloud services enable artifactregistry.googleapis.com --quiet || \
+  handle_error "Failed to enable Artifact Registry API"
+
+# Create gcf-artifacts repo if it does not exist
+if ! gcloud artifacts repositories describe gcf-artifacts \
+    --location="$REGION" &>/dev/null; then
+  echo "📦 Creating Artifact Registry repository: gcf-artifacts"
+  gcloud artifacts repositories create gcf-artifacts \
+    --repository-format=docker \
+    --location="$REGION" \
+    --description="Artifacts for Cloud Functions Gen2" || \
+    handle_error "Failed to create Artifact Registry repository"
+else
+  echo "✅ Artifact Registry repository already exists"
+fi
+
+
+
 read -p "Enter your Telegram Bot Token (from @BotFather): " BOT_TOKEN
 if [ -z "$BOT_TOKEN" ]; then
     echo "❌ Bot token is required"
@@ -122,6 +154,7 @@ echo "📝 Creating terraform configuration..."
 BOT_SOURCE_PATH="../${SELECTED_BOT_DIR}"
 cat > terraform/terraform.tfvars << EOF
 project_id         = "$PROJECT_ID"
+region             = "$REGION"
 telegram_bot_token = "$BOT_TOKEN"
 gemini_api_key     = "$GEMINI_KEY"
 whitelist_user_ids = "$WHITELIST_IDS"
@@ -129,10 +162,16 @@ bot_source_path    = "$BOT_SOURCE_PATH"
 deployer_email     = "$CURRENT_USER_EMAIL"
 EOF
 
+
 echo "✅ Configuration created"
 
 # Navigate to terraform directory
 cd terraform || { echo "❌ Failed to navigate to terraform directory"; handle_error "Failed to navigate to terraform directory"; }
+
+# Initialize Terraform
+echo ""
+echo "� Initializing Terraform..."
+terraform init -upgrade || { echo "❌ Terraform initialization failed"; handle_error "Terraform initialization failed"; }
 
 # Select or create workspace for the project
 echo ""
@@ -143,11 +182,6 @@ else
     terraform workspace new $PROJECT_ID || { echo "❌ Failed to create new workspace '$PROJECT_ID'"; handle_error "Failed to create new workspace"; }
     echo "✅ Created new workspace '$PROJECT_ID'"
 fi
-
-# Initialize Terraform
-echo ""
-echo "� Initializing Terraform..."
-terraform init -upgrade || { echo "❌ Terraform initialization failed"; handle_error "Terraform initialization failed"; }
 
 # Apply infrastructure
 echo ""
