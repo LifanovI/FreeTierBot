@@ -106,6 +106,20 @@ REGION=${REGION:-us-central1}
 
 echo "📍 Using region: $REGION"
 
+read -p "Enter your Telegram Bot Token (from @BotFather): " BOT_TOKEN
+if [ -z "$BOT_TOKEN" ]; then
+    echo "❌ Bot token is required"
+    handle_error "Bot token is required"
+fi
+
+read -p "Enter your Gemini API Key (from Google AI Studio): " GEMINI_KEY
+if [ -z "$GEMINI_KEY" ]; then
+    echo "❌ Gemini API key is required"
+    handle_error "Gemini API key is required"
+fi
+
+read -p "Enter whitelist user IDs (comma-separated, leave empty for public access, numbers only(!) like 1016669999, NOT @UseName): " WHITELIST_IDS
+
 # Ensure correct GCP project is active
 gcloud config set project "$PROJECT_ID" --quiet || \
   handle_error "Failed to set active GCP project"
@@ -130,22 +144,6 @@ if ! gcloud artifacts repositories describe gcf-artifacts \
 else
   echo "✅ Artifact Registry repository already exists"
 fi
-
-
-
-read -p "Enter your Telegram Bot Token (from @BotFather): " BOT_TOKEN
-if [ -z "$BOT_TOKEN" ]; then
-    echo "❌ Bot token is required"
-    handle_error "Bot token is required"
-fi
-
-read -p "Enter your Gemini API Key (from Google AI Studio): " GEMINI_KEY
-if [ -z "$GEMINI_KEY" ]; then
-    echo "❌ Gemini API key is required"
-    handle_error "Gemini API key is required"
-fi
-
-read -p "Enter whitelist user IDs (comma-separated, leave empty for public access, numbers only(!) like 1016669999, NOT @UseName): " WHITELIST_IDS
 
 # Create terraform.tfvars
 echo ""
