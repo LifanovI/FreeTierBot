@@ -87,6 +87,10 @@ gcloud auth application-default login
 * [Telegram Bot Token](https://core.telegram.org/bots/tutorial#obtain-your-bot-token)
 * [Gemini API Key](https://aistudio.google.com/api-keys) (use Free Tier for Free)
 
+**Heads up:** Setting up gcloud on Windows can sometimes be tricky.
+Check this [guide](https://docs.cloud.google.com/sdk/docs/install-sdk) and ask your AI agent for help.
+Make sure before proceeding further that commands like ```gcloud auth list``` work otherwise the script will fail
+
 ## 🚀 One command deployment 
 
 > ⏱️ ~5 minutes from zero to live bot
