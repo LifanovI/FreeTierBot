@@ -18,7 +18,7 @@ variable "telegram_bot_token_secret" {
 variable "scheduler_frequency" {
   description = "Cron schedule for reminder checks"
   type        = string
-  default     = "* * * * *"  # Every minute
+  default     = "* * * * *" # Every minute
 }
 
 variable "telegram_bot_token" {
