@@ -22,51 +22,51 @@ provider "google" {
 
 # Enable required APIs
 resource "google_project_service" "cloudfunctions" {
-  service = "cloudfunctions.googleapis.com"
+  service            = "cloudfunctions.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "cloudbuild" {
-  service = "cloudbuild.googleapis.com"
+  service            = "cloudbuild.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "firestore" {
-  service = "firestore.googleapis.com"
+  service            = "firestore.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "pubsub" {
-  service = "pubsub.googleapis.com"
+  service            = "pubsub.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "cloudscheduler" {
-  service = "cloudscheduler.googleapis.com"
+  service            = "cloudscheduler.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "secretmanager" {
-  service = "secretmanager.googleapis.com"
+  service            = "secretmanager.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "artifactregistry" {
-  service = "artifactregistry.googleapis.com"
+  service            = "artifactregistry.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "compute" {
-  service = "compute.googleapis.com"
+  service            = "compute.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "run" {
-  service = "run.googleapis.com"
+  service            = "run.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "eventarc" {
-  service = "eventarc.googleapis.com"
+  service            = "eventarc.googleapis.com"
   disable_on_destroy = false
 }
